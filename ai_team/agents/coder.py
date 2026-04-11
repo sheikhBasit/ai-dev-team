@@ -2,24 +2,18 @@
 
 from __future__ import annotations
 
-from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
-from langgraph.types import Command
-
+from ai_team.agents.react_loop import react_loop
 from ai_team.config import get_llm
-from ai_team.tools.shell_tools import ALL_TOOLS
 
 
 SYSTEM_PROMPT = """You are a Senior Software Engineer. You write clean, production-ready code.
 
 Rules:
-- Follow existing code patterns exactly (read existing files first!)
-- Python 3.11+, double quotes, line length 88
-- Use type hints
+- Read existing files first to understand the project's patterns and style
+- Follow the existing code patterns exactly
 - No over-engineering — minimal changes to achieve the goal
 - Create files only when necessary, prefer editing existing ones
-- Write code that passes ruff and pyright
-- Every endpoint needs auth (PermissionsValidator pattern)
-- Every DB model needs an Alembic migration
+- Write code that passes the project's linters
 - Match the project's import style and structure
 
 You have tools to:
@@ -28,30 +22,47 @@ You have tools to:
 - edit_file: Modify existing files (preferred over write_file)
 - search_files: Find code patterns in the codebase
 - list_directory: Explore project structure
-- run_command: Run linters, formatters, etc.
+- run_command: Run linters, formatters, tests
 
-After writing code, always run:
-1. ruff check <files> --fix
-2. ruff format <files>
+IMPORTANT: Work incrementally. If this is a re-run after failed review/tests:
+- Focus ONLY on fixing the reported issues
+- Do NOT rewrite code that already works
+- Read the specific files mentioned in the findings
 
+After writing code, run the project's linter on changed files if available.
 Report every file you created or modified."""
 
 
 def coder_agent(state: dict) -> dict:
     """Write code based on the architecture spec."""
-    llm = get_llm().bind_tools(ALL_TOOLS)
+    llm = get_llm()
     architecture = state.get("architecture_spec", "")
     requirements = state.get("requirements_spec", "")
     design = state.get("design_spec", "")
     project_dir = state.get("project_dir", "")
+    project_context = state.get("project_context", "")
+    codebase_index = state.get("codebase_index", "")
     feedback = state.get("human_feedback", "")
+    iteration = state.get("iteration", 0)
 
     # If coming from a failed evaluation, include findings
     review = state.get("review_findings", [])
     tests = state.get("test_results", [])
     security = state.get("security_findings", [])
 
-    user_msg = f"""Architecture Spec:
+    is_fix_iteration = iteration > 0 and (review or tests or security)
+
+    if is_fix_iteration:
+        # Focus mode: only fix reported issues
+        user_msg = f"""## FIX ITERATION {iteration + 1}
+
+You are fixing issues found by reviewers. Do NOT rewrite everything.
+Focus ONLY on the specific issues listed below.
+
+Project Directory: {project_dir}
+"""
+    else:
+        user_msg = f"""Architecture Spec:
 {architecture}
 
 Requirements:
@@ -61,66 +72,64 @@ Design:
 {design}
 
 Project Directory: {project_dir}
+"""
 
+    if project_context:
+        user_msg += f"\nProject Context:\n{project_context}\n"
+
+    if codebase_index:
+        user_msg += f"\nCodebase Index (existing code map):\n{codebase_index[:2000]}\n"
+
+    if not is_fix_iteration:
+        user_msg += """
 Instructions:
 1. Read the existing code to understand patterns
 2. Implement the changes described in the architecture spec
-3. Run ruff check and ruff format on every file you touch
+3. Run linters on every file you touch
 4. List every file you created or modified"""
 
     if feedback:
         user_msg += f"\n\nUser feedback:\n{feedback}"
 
     if review:
-        user_msg += "\n\nCode review findings to fix:\n"
-        for f in review:
-            user_msg += f"- [{f.get('severity', 'info')}] {f.get('message', '')}\n"
+        critical_review = [f for f in review if f.get("severity") in ("critical", "warn")]
+        if critical_review:
+            user_msg += "\n\n## Code Review Issues to Fix:\n"
+            for f in critical_review:
+                user_msg += f"- [{f.get('severity')}] {f.get('file', '')}:{f.get('line', '')} {f.get('message', '')}\n"
 
     if tests:
-        user_msg += "\n\nFailing tests to fix:\n"
-        for f in tests:
-            user_msg += f"- {f.get('message', '')}\n"
+        critical_tests = [f for f in tests if f.get("severity") in ("critical", "warn")]
+        if critical_tests:
+            user_msg += "\n\n## Failing Tests to Fix:\n"
+            for f in critical_tests:
+                hint = f.get("fix_hint", "")
+                category = f.get("error_category", "")
+                msg = f.get("message", "")
+                user_msg += f"- {msg}"
+                if category:
+                    user_msg += f" [category: {category}]"
+                if hint:
+                    user_msg += f" [hint: {hint}]"
+                user_msg += "\n"
 
     if security:
-        user_msg += "\n\nSecurity issues to fix:\n"
-        for f in security:
-            user_msg += f"- [{f.get('severity', 'info')}] {f.get('message', '')}\n"
+        critical_sec = [f for f in security if f.get("severity") in ("critical", "warn")]
+        if critical_sec:
+            user_msg += "\n\n## Security Issues to Fix:\n"
+            for f in critical_sec:
+                user_msg += f"- [{f.get('severity')}] {f.get('message', '')}\n"
 
-    messages = [
-        SystemMessage(content=SYSTEM_PROMPT),
-        HumanMessage(content=user_msg),
-    ]
-
-    changed_files = []
-
-    # ReAct loop — let LLM use tools until done (up to 25 iterations for complex tasks)
-    for _ in range(25):
-        response = llm.invoke(messages)
-        messages.append(response)
-
-        if not response.tool_calls:
-            break
-
-        for tool_call in response.tool_calls:
-            tool_map = {t.name: t for t in ALL_TOOLS}
-            tool_fn = tool_map.get(tool_call["name"])
-            if tool_fn:
-                result = tool_fn.invoke(tool_call["args"])
-                messages.append(
-                    ToolMessage(content=str(result), tool_call_id=tool_call["id"])
-                )
-                # Track file changes
-                if tool_call["name"] in ("write_file", "edit_file"):
-                    fpath = tool_call["args"].get("file_path", "")
-                    if fpath and fpath not in changed_files:
-                        changed_files.append(fpath)
+    response, changed_files = react_loop(
+        llm=llm,
+        system_prompt=SYSTEM_PROMPT,
+        user_message=user_msg,
+        max_iterations=30,
+        agent_name="coder",
+    )
 
     return {
         "code_changes": changed_files,
         "phase": "review",
-        "messages": [f"[Coder] Modified {len(changed_files)} files: {', '.join(changed_files)}"],
-        # Clear previous findings for fresh evaluation
-        "review_findings": [],
-        "test_results": [],
-        "security_findings": [],
+        "messages": [f"[Coder] {'Fixed' if is_fix_iteration else 'Modified'} {len(changed_files)} files: {', '.join(changed_files[:10])}"],
     }

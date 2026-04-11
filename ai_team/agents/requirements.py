@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.types import interrupt
 
+from ai_team.agents.react_loop import invoke_llm_with_retry
 from ai_team.config import get_llm
+
+from langchain_core.messages import HumanMessage, SystemMessage
 
 
 SYSTEM_PROMPT = """You are a Senior Product Manager. Your job is to take a user's feature request
@@ -28,6 +30,7 @@ def requirements_agent(state: dict) -> dict:
     llm = get_llm()
     task = state["task"]
     project_dir = state.get("project_dir", "")
+    project_context = state.get("project_context", "")
     feedback = state.get("human_feedback", "")
 
     user_msg = f"Feature request: {task}"
@@ -35,8 +38,10 @@ def requirements_agent(state: dict) -> dict:
         user_msg += f"\n\nPrevious feedback from the user:\n{feedback}"
     if project_dir:
         user_msg += f"\n\nProject directory: {project_dir}"
+    if project_context:
+        user_msg += f"\n\nProject context:\n{project_context}"
 
-    response = llm.invoke([
+    response = invoke_llm_with_retry(llm, [
         SystemMessage(content=SYSTEM_PROMPT),
         HumanMessage(content=user_msg),
     ])
@@ -55,11 +60,14 @@ def requirements_agent(state: dict) -> dict:
         return {
             "requirements_spec": spec,
             "phase": "design",
-            "messages": [f"[Requirements] Spec approved by user."],
+            "phase_rejections": 0,
+            "messages": ["[Requirements] Spec approved by user."],
         }
     else:
+        rejections = state.get("phase_rejections", 0) + 1
         return {
             "human_feedback": approval.get("feedback", "Please revise"),
             "phase": "requirements",
-            "messages": [f"[Requirements] User requested changes: {approval.get('feedback', '')}"],
+            "phase_rejections": rejections,
+            "messages": [f"[Requirements] User requested changes ({rejections}/5): {approval.get('feedback', '')}"],
         }

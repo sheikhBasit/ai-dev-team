@@ -1,7 +1,39 @@
+# Core (always needed)
 langgraph>=0.4.0
 langchain-core>=0.3.0
-langchain-anthropic>=0.3.0
-langchain-openai>=0.3.0
 langgraph-checkpoint-sqlite>=2.0.0
 python-dotenv>=1.0.0
 rich>=13.0.0
+prompt_toolkit>=3.0.0
+
+# Telegram bot (optional — install with: pip install python-telegram-bot)
+# python-telegram-bot>=21.0
+
+# ── LLM Providers (uncomment what you use) ──────────────────────────────────
+
+# Anthropic (Claude) — best for coding
+langchain-anthropic>=0.3.0
+
+# OpenAI (GPT-4o, o1, o3)
+langchain-openai>=0.3.0
+
+# Google (Gemini)
+# langchain-google-genai>=2.0.0
+
+# Groq (FREE, fast) — llama, mixtral, gemma
+# langchain-groq>=0.2.0
+
+# Mistral
+# langchain-mistralai>=0.2.0
+
+# Together AI
+# langchain-together>=0.2.0
+
+# Fireworks AI
+# langchain-fireworks>=0.2.0
+
+# HuggingFace
+# langchain-huggingface>=0.1.0
+
+# Ollama (local, FREE)
+# langchain-ollama>=0.2.0

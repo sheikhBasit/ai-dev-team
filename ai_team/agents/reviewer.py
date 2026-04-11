@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
-
+from ai_team.agents.react_loop import parse_findings, react_loop
 from ai_team.config import get_llm
-from ai_team.tools.shell_tools import ALL_TOOLS
 
 
 SYSTEM_PROMPT = """You are a Senior Tech Lead performing a thorough code review.
@@ -25,12 +23,12 @@ For each finding, output EXACTLY this JSON format (one per line):
 If the code is good, output:
 {"severity": "pass", "file": "", "line": 0, "message": "Code review passed. No issues found."}
 
-Be thorough but fair. Don't flag style issues that ruff handles."""
+Be thorough but fair. Don't flag style issues that linters handle."""
 
 
 def reviewer_agent(state: dict) -> dict:
     """Review code changes."""
-    llm = get_llm().bind_tools(ALL_TOOLS)
+    llm = get_llm()
     code_changes = state.get("code_changes", [])
     project_dir = state.get("project_dir", "")
     architecture = state.get("architecture_spec", "")
@@ -49,46 +47,19 @@ Instructions:
 3. Check against the architecture spec
 4. Output findings in JSON format"""
 
-    messages = [
-        SystemMessage(content=SYSTEM_PROMPT),
-        HumanMessage(content=user_msg),
-    ]
+    response, _ = react_loop(
+        llm=llm,
+        system_prompt=SYSTEM_PROMPT,
+        user_message=user_msg,
+        max_iterations=12,
+        agent_name="reviewer",
+    )
 
-    for _ in range(10):
-        response = llm.invoke(messages)
-        messages.append(response)
-        if not response.tool_calls:
-            break
-        for tool_call in response.tool_calls:
-            tool_map = {t.name: t for t in ALL_TOOLS}
-            tool_fn = tool_map.get(tool_call["name"])
-            if tool_fn:
-                result = tool_fn.invoke(tool_call["args"])
-                messages.append(
-                    ToolMessage(content=str(result), tool_call_id=tool_call["id"])
-                )
-
-    # Parse findings from response
-    import json
-    import re
-
-    findings = []
-    for line in response.content.splitlines():
-        line = line.strip()
-        # Try to extract JSON objects from the line
-        json_matches = re.findall(r'\{[^}]+\}', line)
-        for match in json_matches:
-            try:
-                finding = json.loads(match)
-                if "severity" in finding:
-                    findings.append(finding)
-            except json.JSONDecodeError:
-                continue
-
-    if not findings:
-        findings = [{"severity": "pass", "file": "", "line": 0, "message": "Review complete, no structured findings."}]
+    findings = parse_findings(response.content)
+    for f in findings:
+        f["agent"] = "reviewer"
 
     return {
         "review_findings": findings,
-        "messages": [f"[Reviewer] Found {len(findings)} issues."],
+        "messages": [f"[Reviewer] {len(findings)} findings."],
     }

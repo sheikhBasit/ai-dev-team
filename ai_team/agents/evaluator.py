@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Literal
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from langgraph.types import Command, interrupt
+from langgraph.types import Command
 
+from ai_team.agents.react_loop import invoke_llm_with_retry
 from ai_team.config import get_llm
 
+logger = logging.getLogger("ai_team.agents.evaluator")
 
 SYSTEM_PROMPT = """You are an Engineering Manager making the ship/no-ship decision.
 
@@ -29,7 +32,7 @@ Then explain why in 2-3 sentences.
 List the critical/warn issues that need fixing (if any)."""
 
 
-def evaluator_agent(state: dict) -> Command[Literal["coder", "human_final_review"]]:
+def evaluator_agent(state: dict) -> Command[Literal["coder", "learn_lessons"]]:
     """Evaluate all findings and decide: ship or loop back."""
     llm = get_llm()
     review = state.get("review_findings", [])
@@ -39,6 +42,8 @@ def evaluator_agent(state: dict) -> Command[Literal["coder", "human_final_review
     max_iterations = state.get("max_iterations", 5)
 
     all_findings = review + tests + security
+    has_critical = any(f.get("severity") == "critical" for f in all_findings)
+    warn_count = sum(1 for f in all_findings if f.get("severity") == "warn")
 
     user_msg = f"""Iteration: {iteration + 1} / {max_iterations}
 
@@ -53,37 +58,48 @@ Security Findings:
 
 Make your SHIP / NO_SHIP decision."""
 
-    response = llm.invoke([
+    response = invoke_llm_with_retry(llm, [
         SystemMessage(content=SYSTEM_PROMPT),
         HumanMessage(content=user_msg),
     ])
 
     evaluation = response.content
-    has_critical = any(f.get("severity") == "critical" for f in all_findings)
-    warn_count = sum(1 for f in all_findings if f.get("severity") == "warn")
     should_ship = not has_critical and warn_count <= 3
 
+    new_iteration = iteration + 1
+
     # Force ship if max iterations reached
-    if iteration + 1 >= max_iterations:
+    if new_iteration >= max_iterations and not should_ship:
         should_ship = True
-        evaluation += f"\n\n[FORCED] Max iterations ({max_iterations}) reached. Shipping with current state."
+        evaluation += (
+            f"\n\n[FORCED] Max iterations ({max_iterations}) reached. "
+            f"Shipping with {sum(1 for f in all_findings if f.get('severity') == 'critical')} "
+            f"critical and {warn_count} warn issues remaining."
+        )
+        logger.warning("Forcing ship at max iterations (%d)", max_iterations)
 
     if should_ship:
+        logger.info("SHIP decision at iteration %d", new_iteration)
         return Command(
             update={
                 "evaluation": evaluation,
-                "all_passed": True,
-                "messages": [f"[Evaluator] SHIP — iteration {iteration + 1}"],
+                "all_passed": not has_critical,
+                "iteration": new_iteration,
+                "messages": [f"[Evaluator] SHIP at iteration {new_iteration}"],
             },
-            goto="human_final_review",
+            goto="learn_lessons",
         )
     else:
+        logger.info(
+            "NO_SHIP at iteration %d — %d critical, %d warn",
+            new_iteration, int(has_critical), warn_count,
+        )
         return Command(
             update={
                 "evaluation": evaluation,
                 "all_passed": False,
-                "iteration": iteration + 1,
-                "messages": [f"[Evaluator] NO_SHIP — looping back, iteration {iteration + 1}"],
+                "iteration": new_iteration,
+                "messages": [f"[Evaluator] NO_SHIP — looping back (iteration {new_iteration}/{max_iterations})"],
             },
             goto="coder",
         )

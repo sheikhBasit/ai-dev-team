@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.types import interrupt
 
+from ai_team.agents.react_loop import react_loop
 from ai_team.config import get_llm
-from ai_team.tools.shell_tools import ALL_TOOLS
 
 
 SYSTEM_PROMPT = """You are a Senior Solution Architect. You design the technical implementation
@@ -14,7 +13,7 @@ plan that developers will follow exactly.
 
 You have tools to read the existing codebase. USE THEM to understand:
 - Existing patterns (how endpoints are structured, how services work)
-- Database models (SQLAlchemy models)
+- Database models (ORM models)
 - Existing tests (test patterns, fixtures)
 - Configuration (how the app is configured)
 
@@ -26,7 +25,7 @@ Your output must include:
    - Data flow diagram (text-based)
 
 2. **Database Changes** (if any)
-   - New models / modified models (SQLAlchemy)
+   - New models / modified models
    - Migration strategy
    - Index recommendations
 
@@ -38,7 +37,7 @@ Your output must include:
 4. **Integration Points**
    - What existing services/modules are affected
    - External API calls needed
-   - Cache/Redis usage
+   - Cache/queue usage
 
 5. **Risk Assessment**
    - What could break
@@ -50,7 +49,7 @@ Reference specific files and line numbers from the codebase."""
 
 def architect_agent(state: dict) -> dict:
     """Design the technical architecture."""
-    llm = get_llm().bind_tools(ALL_TOOLS)
+    llm = get_llm()
     spec = state.get("requirements_spec", "")
     design = state.get("design_spec", "")
     project_dir = state.get("project_dir", "")
@@ -74,33 +73,13 @@ Start by listing the project directory to understand the structure."""
     if feedback:
         user_msg += f"\n\nArchitecture feedback from user:\n{feedback}"
 
-    # Run agent loop — let LLM call tools until it has enough context
-    from langchain_core.messages import AIMessage
-
-    messages = [
-        SystemMessage(content=SYSTEM_PROMPT),
-        HumanMessage(content=user_msg),
-    ]
-
-    # Simple ReAct loop: let the LLM call tools up to 10 times
-    for _ in range(10):
-        response = llm.invoke(messages)
-        messages.append(response)
-
-        if not response.tool_calls:
-            break
-
-        # Execute tool calls
-        from langchain_core.messages import ToolMessage
-
-        for tool_call in response.tool_calls:
-            tool_map = {t.name: t for t in ALL_TOOLS}
-            tool_fn = tool_map.get(tool_call["name"])
-            if tool_fn:
-                result = tool_fn.invoke(tool_call["args"])
-                messages.append(
-                    ToolMessage(content=str(result), tool_call_id=tool_call["id"])
-                )
+    response, _ = react_loop(
+        llm=llm,
+        system_prompt=SYSTEM_PROMPT,
+        user_message=user_msg,
+        max_iterations=15,
+        agent_name="architect",
+    )
 
     architecture = response.content
 
@@ -115,11 +94,14 @@ Start by listing the project directory to understand the structure."""
         return {
             "architecture_spec": architecture,
             "phase": "code",
+            "phase_rejections": 0,
             "messages": ["[Architect] Architecture approved by user."],
         }
     else:
+        rejections = state.get("phase_rejections", 0) + 1
         return {
             "human_feedback": approval.get("feedback", "Please revise"),
             "phase": "architecture",
-            "messages": [f"[Architect] User requested changes: {approval.get('feedback', '')}"],
+            "phase_rejections": rejections,
+            "messages": [f"[Architect] User requested changes ({rejections}/5): {approval.get('feedback', '')}"],
         }
