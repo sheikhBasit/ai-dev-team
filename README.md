@@ -7,7 +7,7 @@ Supports 12 LLM providers: Claude, GPT-4, Gemini, Groq (free), DeepSeek, Mistral
 ## Quick Start
 
 ```bash
-git clone https://github.com/basitdev/ai-dev-team
+git clone https://github.com/sheikhBasit/ai-dev-team
 cd ai-dev-team
 make setup
 # Edit .env → add your API key
