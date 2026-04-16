@@ -15,6 +15,7 @@ from langgraph.types import Send, interrupt
 from ai_team.agents.architect import architect_agent
 from ai_team.agents.codebase_indexer import build_codebase_index
 from ai_team.agents.coder import coder_agent
+from ai_team.agents.debugger import debugger_agent
 from ai_team.agents.designer import designer_agent
 from ai_team.agents.evaluator import evaluator_agent
 from ai_team.agents.memory import (
@@ -202,11 +203,12 @@ def route_after_architecture(state: State) -> Literal["architect", "preflight"]:
 
 
 def fan_out_verification(state: State) -> list[Send]:
-    """After coding, fan out to reviewer + tester + security in parallel."""
+    """After coding, fan out to reviewer + tester + security + debugger in parallel."""
     return [
         Send("reviewer", state),
         Send("tester", state),
         Send("security", state),
+        Send("debugger", state),
     ]
 
 
@@ -392,6 +394,7 @@ def build_graph():
     builder.add_node("reviewer", reviewer_agent)
     builder.add_node("tester", tester_agent)
     builder.add_node("security", security_agent)
+    builder.add_node("debugger", debugger_agent)
     builder.add_node("evaluator", evaluator_agent)
     builder.add_node("learn_lessons", learn_lessons_node)
     builder.add_node("ci_check", ci_check_node)
@@ -416,12 +419,13 @@ def build_graph():
 
     # Phase 4: Code → git commit → parallel verification
     builder.add_edge("coder", "git_commit")
-    builder.add_conditional_edges("git_commit", fan_out_verification, ["reviewer", "tester", "security"])
+    builder.add_conditional_edges("git_commit", fan_out_verification, ["reviewer", "tester", "security", "debugger"])
 
     # Phase 5: Verification agents → evaluator
     builder.add_edge("reviewer", "evaluator")
     builder.add_edge("tester", "evaluator")
     builder.add_edge("security", "evaluator")
+    builder.add_edge("debugger", "evaluator")
 
     # Phase 6: Evaluator → Command routes to "coder" or "learn_lessons"
     # (evaluator uses Command(goto=...) so no explicit edges needed here,

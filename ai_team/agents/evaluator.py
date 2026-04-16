@@ -41,6 +41,7 @@ def evaluator_agent(state: dict) -> Command[Literal["coder", "learn_lessons"]]:
     iteration = state.get("iteration", 0)
     max_iterations = state.get("max_iterations", 5)
 
+    debugger_report = state.get("debugger_report", "")
     all_findings = review + tests + security
     has_critical = any(f.get("severity") == "critical" for f in all_findings)
     warn_count = sum(1 for f in all_findings if f.get("severity") == "warn")
@@ -54,9 +55,12 @@ Test Results:
 {_format_findings(tests)}
 
 Security Findings:
-{_format_findings(security)}
+{_format_findings(security)}"""
 
-Make your SHIP / NO_SHIP decision."""
+    if debugger_report:
+        user_msg += f"\n\nDebug analysis:\n{debugger_report}"
+
+    user_msg += "\n\nMake your SHIP / NO_SHIP decision."
 
     response = invoke_llm_with_retry(llm, [
         SystemMessage(content=SYSTEM_PROMPT),
