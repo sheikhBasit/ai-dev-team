@@ -19,6 +19,7 @@ from ai_team.agents.debugger import debugger_agent
 from ai_team.agents.designer import designer_agent
 from ai_team.agents.docs import docs_agent
 from ai_team.agents.evaluator import evaluator_agent
+from ai_team.agents.import_healer import import_healer_node
 from ai_team.agents.memory import (
     extract_lessons_from_evaluation,
     format_lessons_for_prompt,
@@ -396,6 +397,7 @@ def build_graph():
     builder.add_node("preflight", preflight_node)
     builder.add_node("planner", planner_agent)
     builder.add_node("coder", coder_agent)
+    builder.add_node("import_healer", import_healer_node)
     builder.add_node("git_commit", git_commit_node)
     builder.add_node("reviewer", reviewer_agent)
     builder.add_node("tester", tester_agent)
@@ -424,8 +426,9 @@ def build_graph():
     builder.add_edge("preflight", "planner")
     builder.add_edge("planner", "coder")
 
-    # Phase 4: Code → git commit → parallel verification
-    builder.add_edge("coder", "git_commit")
+    # Phase 4: Code → import healer → git commit → parallel verification
+    builder.add_edge("coder", "import_healer")
+    builder.add_edge("import_healer", "git_commit")
     builder.add_conditional_edges("git_commit", fan_out_verification, ["reviewer", "tester", "security", "debugger"])
 
     # Phase 5: Verification agents → evaluator
