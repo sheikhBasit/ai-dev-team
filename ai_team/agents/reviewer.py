@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from ai_team.agents.react_loop import parse_findings, react_loop
 from ai_team.config import get_llm_for_agent
+from ai_team.tools.rag_tools import search_codebase
+from ai_team.tools.shell_tools import read_file, search_files
 
 
 SYSTEM_PROMPT = """You are a Senior Tech Lead performing a thorough code review.
@@ -16,6 +18,14 @@ Review every changed file for:
 4. **Performance** — N+1 queries? Missing indexes? Unnecessary loops? Memory leaks?
 5. **Readability** — Clear variable names? No magic numbers? Reasonable complexity?
 6. **Edge cases** — Empty inputs? Null values? Concurrent access?
+
+Before reviewing each changed file:
+1. Use search_codebase to find similar patterns, related functions, or existing implementations
+2. Check if the new code is consistent with existing patterns
+3. Flag any duplication with existing code
+4. Verify that the implementation matches the project's conventions
+
+Available tools: read_file, search_files, search_codebase
 
 For each finding, output EXACTLY this JSON format (one per line):
 {"severity": "critical|warn|info", "file": "path", "line": 123, "message": "description"}
@@ -43,14 +53,16 @@ Project directory: {project_dir}
 
 Instructions:
 1. Read each changed file
-2. Read similar existing files to compare patterns
-3. Check against the architecture spec
-4. Output findings in JSON format"""
+2. Use search_codebase to find related code and check for consistency with existing patterns
+3. Read similar existing files to compare patterns
+4. Check against the architecture spec
+5. Output findings in JSON format"""
 
     response, _ = react_loop(
         llm=llm,
         system_prompt=SYSTEM_PROMPT,
         user_message=user_msg,
+        tools=[read_file, search_files, search_codebase],
         max_iterations=12,
         agent_name="reviewer",
     )
