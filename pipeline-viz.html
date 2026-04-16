@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Dev Team — Pipeline Visualizer</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0d1117; color: #e6edf3; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; min-height: 100vh; overflow-x: hidden; }
+  header { padding: 24px 32px 16px; border-bottom: 1px solid #21262d; display: flex; align-items: center; gap: 16px; }
+  .logo { width: 40px; height: 40px; background: linear-gradient(135deg, #1f6feb, #a371f7); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; color: white; }
+  header h1 { font-size: 20px; font-weight: 600; }
+  header p  { font-size: 13px; color: #7d8590; margin-top: 2px; }
+  .controls { display: flex; gap: 10px; margin-left: auto; align-items: center; }
+  .btn { padding: 7px 16px; border-radius: 6px; border: 1px solid #30363d; background: #21262d; color: #e6edf3; font-size: 13px; cursor: pointer; transition: all 0.15s; }
+  .btn:hover { background: #30363d; border-color: #8b949e; }
+  .btn.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+  .btn.primary:hover { background: #388bfd; border-color: #388bfd; }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .speed-label { font-size: 12px; color: #7d8590; }
+  main { display: grid; grid-template-columns: 1fr 360px; gap: 0; height: calc(100vh - 89px); }
+  .canvas-wrap { padding: 32px; overflow: auto; }
+  svg#pipeline { width: 100%; min-height: 620px; overflow: visible; }
+  .sidebar { border-left: 1px solid #21262d; display: flex; flex-direction: column; overflow: hidden; }
+  .sidebar-section { border-bottom: 1px solid #21262d; padding: 16px; }
+  .sidebar-section h3 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #7d8590; margin-bottom: 12px; }
+  #agent-detail { flex: 1; overflow-y: auto; padding: 16px; }
+  #agent-detail h3 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #7d8590; margin-bottom: 12px; }
+  .agent-card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 14px; margin-bottom: 10px; }
+  .agent-card.active { border-color: #1f6feb; box-shadow: 0 0 0 1px #1f6feb33; }
+  .agent-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .agent-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .agent-card h4 { font-size: 14px; font-weight: 600; }
+  .agent-card .role { font-size: 11px; color: #7d8590; }
+  .agent-card .desc { font-size: 12px; color: #8b949e; line-height: 1.5; }
+  .badge { display: inline-block; padding: 1px 7px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+  .badge-blue   { background: #1f6feb22; color: #58a6ff; border: 1px solid #1f6feb44; }
+  .badge-purple { background: #a371f722; color: #d2a8ff; border: 1px solid #a371f744; }
+  .badge-green  { background: #2ea04322; color: #3fb950; border: 1px solid #2ea04344; }
+  .badge-orange { background: #e3b34122; color: #e3b341; border: 1px solid #e3b34144; }
+  #log-stream { padding: 0 16px 16px; overflow-y: auto; max-height: 220px; }
+  .log-entry { font-size: 11px; font-family: 'Courier New', monospace; line-height: 1.6; color: #7d8590; padding: 1px 0; opacity: 0; transform: translateY(4px); transition: all 0.2s; }
+  .log-entry.visible { opacity: 1; transform: none; }
+  .log-entry .ts  { color: #30363d; }
+  .log-entry .tag { font-weight: 600; }
+  .log-entry.info .tag { color: #58a6ff; }
+  .log-entry.ok   .tag { color: #3fb950; }
+  .log-entry.warn .tag { color: #e3b341; }
+  .progress-wrap { padding: 14px 16px; border-top: 1px solid #21262d; }
+  .progress-bar  { height: 4px; background: #21262d; border-radius: 2px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, #1f6feb, #a371f7); border-radius: 2px; transition: width 0.4s ease; width: 0%; }
+  .progress-label { display: flex; justify-content: space-between; font-size: 11px; color: #7d8590; margin-bottom: 6px; }
+  .node-group { cursor: pointer; }
+  .edge-path { fill: none; stroke: #30363d; stroke-width: 1.5; transition: stroke 0.3s, stroke-width 0.3s; }
+  .edge-path.active { stroke: #1f6feb; stroke-width: 2; stroke-dasharray: 6 3; animation: dash 0.5s linear infinite; }
+  @keyframes dash { to { stroke-dashoffset: -9; } }
+  .node-label    { font-size: 11px; font-weight: 600; text-anchor: middle; dominant-baseline: central; fill: #e6edf3; pointer-events: none; }
+  .node-sublabel { font-size: 9px; text-anchor: middle; dominant-baseline: central; fill: #8b949e; pointer-events: none; }
+  .pulse-ring    { fill: none; stroke-width: 2; opacity: 0; }
+  @keyframes pulse { 0% { r: 22; opacity: 0.8; } 100% { r: 36; opacity: 0; } }
+  .pulse-ring.animating { animation: pulse 1s ease-out infinite; }
+  .parallel-label { font-size: 9px; fill: #a371f7; font-style: italic; }
+  .tooltip { position: fixed; background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 10px 14px; font-size: 12px; pointer-events: none; opacity: 0; transition: opacity 0.15s; z-index: 100; max-width: 200px; }
+  .tooltip.visible { opacity: 1; }
+  .tooltip h5 { font-size: 13px; margin-bottom: 4px; color: #e6edf3; }
+  .tooltip p  { color: #8b949e; line-height: 1.4; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">A</div>
+  <div>
+    <h1>AI Dev Team</h1>
+    <p>LangGraph multi-agent pipeline — describe a task, agents build it end-to-end</p>
+  </div>
+  <div class="controls">
+    <span class="speed-label">Speed</span>
+    <select class="btn" id="speed-select">
+      <option value="1200">Slow</option>
+      <option value="700" selected>Normal</option>
+      <option value="350">Fast</option>
+    </select>
+    <button class="btn" id="reset-btn">Reset</button>
+    <button class="btn primary" id="play-btn">Run Pipeline</button>
+  </div>
+</header>
+
+<main>
+  <div class="canvas-wrap">
+    <svg id="pipeline" viewBox="0 0 860 620"></svg>
+  </div>
+  <div class="sidebar">
+    <div id="agent-detail">
+      <h3>Agent Detail</h3>
+      <div id="agent-info"></div>
+    </div>
+    <div class="sidebar-section">
+      <h3>Live Log</h3>
+      <div id="log-stream"></div>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-label">
+        <span id="progress-step">Waiting</span>
+        <span id="progress-pct">0%</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+const NODES = [
+  { id:'start',  label:'START',       sub:'',               x:120, y:60,  color:'#21262d', border:'#30363d', icon:'',   role:'',                desc:'Pipeline entry. User submits a task via CLI, chat, or Telegram bot.' },
+  { id:'init',   label:'Init',         sub:'Detect · Index', x:120, y:160, color:'#0d2136', border:'#1f6feb', icon:'',  role:'System',          desc:'Detects project language/framework, builds codebase index, creates git branch, loads session memory.' },
+  { id:'req',    label:'Requirements', sub:'Product Manager',x:120, y:270, color:'#1a1040', border:'#a371f7', icon:'',  role:'Agent | Human',   desc:'Writes a PRD spec. Human approves before continuing. Max 5 rejections then auto-proceeds.' },
+  { id:'design', label:'Designer',     sub:'UI/UX',          x:120, y:380, color:'#1a1040', border:'#a371f7', icon:'',  role:'Agent | Human',   desc:'Generates UI/UX component designs. Human can reject and iterate.' },
+  { id:'arch',   label:'Architect',    sub:'Solution Design',x:120, y:490, color:'#1a1040', border:'#a371f7', icon:'',  role:'Agent | Human',   desc:'Reads codebase, designs system architecture. Human approves before coding starts.' },
+  { id:'pre',    label:'Preflight',    sub:'Checks',         x:280, y:490, color:'#0d2136', border:'#1f6feb', icon:'',  role:'System',          desc:'Checks ruff linter, test directories, git status. Warns if codebase is dirty.' },
+  { id:'coder',  label:'Coder',        sub:'Senior Dev',     x:440, y:490, color:'#0d2136', border:'#1f6feb', icon:'',  role:'Agent | Full tools','desc':'Writes code using all tools. Up to 30 ReAct iterations. Sandboxed to project dir.' },
+  { id:'git',    label:'Git Commit',   sub:'Auto-commit',    x:600, y:490, color:'#0d2136', border:'#1f6feb', icon:'',  role:'System',          desc:'Auto-commits each coding iteration so any bad changes can be rolled back.' },
+  { id:'review', label:'Reviewer',     sub:'Tech Lead',      x:480, y:360, color:'#0d2136', border:'#2ea043', icon:'',  role:'Agent | Parallel','desc':'Code review: style, logic, maintainability. Runs in parallel with Tester and Security.' },
+  { id:'tester', label:'Tester',       sub:'QA Engineer',    x:600, y:360, color:'#0d2136', border:'#2ea043', icon:'',  role:'Agent | Parallel','desc':'Writes and runs tests. Executes shell commands. Runs in parallel.' },
+  { id:'sec',    label:'Security',     sub:'OWASP Audit',    x:720, y:360, color:'#0d2136', border:'#2ea043', icon:'',  role:'Agent | Parallel','desc':'OWASP Top 10 audit, secret scanning, dependency CVE check. Runs in parallel.' },
+  { id:'eval',   label:'Evaluator',    sub:'Eng Manager',    x:720, y:490, color:'#1a2010', border:'#2ea043', icon:'',  role:'Agent | Decision','desc':'Engineering Manager. Decides ship/no-ship. Routes back to Coder (max 5 iterations) or proceeds.' },
+  { id:'ci',     label:'CI Check',     sub:'ruff · pyright', x:720, y:240, color:'#0d2136', border:'#1f6feb', icon:'',  role:'System',          desc:'Runs ruff lint and pyright type-check — same as CI pipeline — before final review.' },
+  { id:'final',  label:'Final Review', sub:'Human gate',     x:720, y:140, color:'#1a1a10', border:'#e3b341', icon:'',  role:'Human Gate',      desc:'Shows git diff + evaluation summary. Human approves to ship or rejects to abandon.' },
+  { id:'end',    label:'END',          sub:'',               x:720, y:60,  color:'#21262d', border:'#30363d', icon:'',  role:'',                desc:'Pipeline complete. Branch is ready to merge.' },
+];
+
+const EDGES = [
+  { from:'start',  to:'init',   curve:false },
+  { from:'init',   to:'req',    curve:false },
+  { from:'req',    to:'design', curve:false },
+  { from:'design', to:'arch',   curve:false },
+  { from:'arch',   to:'pre',    curve:false },
+  { from:'pre',    to:'coder',  curve:false },
+  { from:'coder',  to:'git',    curve:false },
+  { from:'git',    to:'review', parallel:true },
+  { from:'git',    to:'tester', parallel:true },
+  { from:'git',    to:'sec',    parallel:true },
+  { from:'review', to:'eval',   curve:false },
+  { from:'tester', to:'eval',   curve:false },
+  { from:'sec',    to:'eval',   curve:false },
+  { from:'eval',   to:'coder',  curve:true  },
+  { from:'eval',   to:'ci',     curve:false },
+  { from:'ci',     to:'final',  curve:false },
+  { from:'final',  to:'end',    curve:false },
+];
+
+const SEQUENCE = [
+  { node:'start',  edge:'start-init',    log:{ type:'info', tag:'[Pipeline]', msg:'Task received: "Add user authentication"' } },
+  { node:'init',   edge:'init-req',      log:{ type:'info', tag:'[Init]',     msg:'Detected: Python · FastAPI · PostgreSQL' } },
+  { node:'req',    edge:'req-design',    log:{ type:'ok',   tag:'[Req]',      msg:'PRD written. Human approved ✓' } },
+  { node:'design', edge:'design-arch',   log:{ type:'ok',   tag:'[Design]',   msg:'UI components designed. Human approved ✓' } },
+  { node:'arch',   edge:'arch-pre',      log:{ type:'ok',   tag:'[Arch]',     msg:'Architecture designed. Human approved ✓' } },
+  { node:'pre',    edge:'pre-coder',     log:{ type:'info', tag:'[Preflight]',msg:'ruff OK · tests found · git clean' } },
+  { node:'coder',  edge:'coder-git',     log:{ type:'info', tag:'[Coder]',    msg:'14 tool calls — wrote auth.py, tests/test_auth.py' } },
+  { node:'git',    edge:'git-review',    log:{ type:'info', tag:'[Git]',      msg:'Auto-committed iteration 1' } },
+  { node:'review', edge:null,            log:{ type:'info', tag:'[Parallel]', msg:'Reviewer · Tester · Security running...' } },
+  { node:'tester', edge:null,            log:{ type:'ok',   tag:'[Tester]',   msg:'pytest: 12 passed' } },
+  { node:'sec',    edge:null,            log:{ type:'warn', tag:'[Security]', msg:'JWT secret hardcoded — flagged' } },
+  { node:'eval',   edge:'eval-coder',    log:{ type:'warn', tag:'[Eval]',     msg:'Security issue found. Routing back to coder...' } },
+  { node:'coder',  edge:'coder-git',     log:{ type:'info', tag:'[Coder]',    msg:'Iteration 2: moved secret to env var' } },
+  { node:'git',    edge:'git-review',    log:{ type:'info', tag:'[Git]',      msg:'Auto-committed iteration 2' } },
+  { node:'review', edge:'review-eval',   log:{ type:'ok',   tag:'[Review]',   msg:'Code quality: PASS' } },
+  { node:'tester', edge:'tester-eval',   log:{ type:'ok',   tag:'[Tester]',   msg:'pytest: 12 passed (no regressions)' } },
+  { node:'sec',    edge:'sec-eval',      log:{ type:'ok',   tag:'[Security]', msg:'OWASP checks: PASS' } },
+  { node:'eval',   edge:'eval-ci',       log:{ type:'ok',   tag:'[Eval]',     msg:'SHIP ✓ — all checks passed' } },
+  { node:'ci',     edge:'ci-final',      log:{ type:'ok',   tag:'[CI]',       msg:'ruff: PASS · pyright: PASS' } },
+  { node:'final',  edge:'final-end',     log:{ type:'ok',   tag:'[Review]',   msg:'Human approved. Shipping.' } },
+  { node:'end',    edge:null,            log:{ type:'ok',   tag:'[Done]',     msg:'Pipeline complete. Branch ready to merge.' } },
+];
+
+const AGENT_META = {
+  init:   { badge:'badge-blue',   tools:'fs scan · git · memory' },
+  req:    { badge:'badge-purple', tools:'LLM only' },
+  design: { badge:'badge-purple', tools:'LLM only' },
+  arch:   { badge:'badge-purple', tools:'read_file · search · list' },
+  pre:    { badge:'badge-blue',   tools:'shell · git' },
+  coder:  { badge:'badge-blue',   tools:'ALL (30 iterations)' },
+  git:    { badge:'badge-blue',   tools:'git add · commit' },
+  review: { badge:'badge-green',  tools:'read_file · search' },
+  tester: { badge:'badge-green',  tools:'ALL tools' },
+  sec:    { badge:'badge-green',  tools:'read_file · search · shell' },
+  eval:   { badge:'badge-green',  tools:'LLM only · routes' },
+  ci:     { badge:'badge-blue',   tools:'ruff · pyright' },
+  final:  { badge:'badge-orange', tools:'git diff · interrupt' },
+};
+
+// ── SVG build ─────────────────────────────────────────────────────────────────
+const svg = document.getElementById('pipeline');
+const NS = 'http://www.w3.org/2000/svg';
+
+function svgEl(tag, attrs, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k,v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+  if (parent) parent.appendChild(e);
+  return e;
+}
+
+function svgText(el, text) { el.textContent = text; }
+
+const defs = svgEl('defs', {}, svg);
+function mkArrow(id, color) {
+  const m = svgEl('marker', { id, markerWidth:8, markerHeight:6, refX:7, refY:3, orient:'auto' }, defs);
+  svgEl('polygon', { points:'0 0, 8 3, 0 6', fill:color }, m);
+}
+mkArrow('arrow-default', '#30363d');
+mkArrow('arrow-active',  '#1f6feb');
+
+function nodeById(id) { return NODES.find(n => n.id === id); }
+
+// Edge group
+const edgeG = svgEl('g', { id:'edges' }, svg);
+const edgePaths = {};
+const nodeW = 110, nodeH = 44;
+
+for (const e of EDGES) {
+  const f = nodeById(e.from), t = nodeById(e.to);
+  if (!f || !t) continue;
+  const key = e.from + '-' + e.to;
+  let d;
+  if (e.curve) {
+    d = `M ${f.x} ${f.y} C ${f.x-180} ${f.y}, ${t.x-60} ${t.y-80}, ${t.x} ${t.y}`;
+  } else {
+    d = `M ${f.x} ${f.y} L ${t.x} ${t.y}`;
+  }
+  const path = svgEl('path', { d, class:'edge-path', 'marker-end':'url(#arrow-default)', id:'ep-'+key }, edgeG);
+  if (!edgePaths[key]) edgePaths[key] = path;
+}
+
+// Parallel label
+const gitN = nodeById('git'), testN = nodeById('tester');
+const pLabel = svgEl('text', { x: (gitN.x + testN.x)/2, y: gitN.y - 18, class:'parallel-label', 'text-anchor':'middle' }, edgeG);
+svgText(pLabel, '[ parallel fan-out ]');
+
+// Node group
+const nodeG = svgEl('g', { id:'nodes' }, svg);
+const nodeEls = {};
+
+for (const n of NODES) {
+  const g = svgEl('g', { class:'node-group', id:'ng-'+n.id, transform:`translate(${n.x - nodeW/2}, ${n.y - nodeH/2})` }, nodeG);
+
+  // Pulse ring
+  const ring = svgEl('circle', { cx:nodeW/2, cy:nodeH/2, r:22, class:'pulse-ring', stroke:n.border, id:'ring-'+n.id }, g);
+
+  // Rect
+  svgEl('rect', { x:0, y:0, width:nodeW, height:nodeH, rx:8, ry:8, fill:n.color, stroke:n.border, 'stroke-width':1.5, id:'rect-'+n.id }, g);
+
+  // Label
+  const lbl = svgEl('text', { x:nodeW/2, y: nodeH/2 - (n.sub ? 6 : 0), class:'node-label' }, g);
+  svgText(lbl, n.label);
+
+  // Sub-label
+  if (n.sub) {
+    const sub = svgEl('text', { x:nodeW/2, y:nodeH/2+8, class:'node-sublabel' }, g);
+    svgText(sub, n.sub);
+  }
+
+  nodeEls[n.id] = g;
+  g.addEventListener('click',      () => showInfo(n));
+  g.addEventListener('mouseenter', (ev) => showTip(ev, n));
+  g.addEventListener('mouseleave',      hideTip);
+}
+
+// ── Tooltip ───────────────────────────────────────────────────────────────────
+const tooltip = document.getElementById('tooltip');
+
+function showTip(ev, n) {
+  if (!n.desc) return;
+  const h5 = document.createElement('h5');
+  svgText(h5, n.label);
+  const p = document.createElement('p');
+  svgText(p, n.desc);
+  tooltip.replaceChildren(h5, p);
+  tooltip.classList.add('visible');
+}
+function hideTip() { tooltip.classList.remove('visible'); }
+document.addEventListener('mousemove', ev => {
+  tooltip.style.left = (ev.clientX + 16) + 'px';
+  tooltip.style.top  = (ev.clientY - 8)  + 'px';
+});
+
+// ── Agent info panel ──────────────────────────────────────────────────────────
+function showInfo(node) {
+  const meta = AGENT_META[node.id] || {};
+  const wrap = document.getElementById('agent-info');
+
+  const card = document.createElement('div');
+  card.className = 'agent-card active';
+
+  const header = document.createElement('div');
+  header.className = 'agent-card-header';
+
+  const iconEl = document.createElement('div');
+  iconEl.className = 'agent-icon';
+  iconEl.style.background = node.border + '22';
+  iconEl.style.border = '1px solid ' + node.border + '44';
+  svgText(iconEl, node.icon || '');
+
+  const titleBlock = document.createElement('div');
+  const h4 = document.createElement('h4');
+  svgText(h4, node.label);
+  const roleEl = document.createElement('div');
+  roleEl.className = 'role';
+  svgText(roleEl, node.role || '');
+  titleBlock.append(h4, roleEl);
+
+  header.append(iconEl, titleBlock);
+
+  const descEl = document.createElement('p');
+  descEl.className = 'desc';
+  descEl.style.marginBottom = '8px';
+  svgText(descEl, node.desc || 'System node.');
+
+  card.append(header, descEl);
+
+  if (meta.tools) {
+    const badge = document.createElement('span');
+    badge.className = 'badge ' + (meta.badge || 'badge-blue');
+    svgText(badge, 'Tools: ' + meta.tools);
+    card.appendChild(badge);
+  }
+
+  wrap.replaceChildren(card);
+}
+
+// Init default info
+(function() {
+  const p = document.createElement('p');
+  p.style.cssText = 'font-size:12px;color:#7d8590';
+  svgText(p, 'Click a node or press Run Pipeline to start the animation.');
+  document.getElementById('agent-info').replaceChildren(p);
+})();
+
+// ── Log stream ────────────────────────────────────────────────────────────────
+const logEl = document.getElementById('log-stream');
+
+function addLog(entry) {
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const ts = pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
+
+  const div  = document.createElement('div');
+  div.className = 'log-entry ' + entry.type;
+
+  const tsSpan  = document.createElement('span');
+  tsSpan.className = 'ts';
+  svgText(tsSpan, ts + ' ');
+
+  const tagSpan = document.createElement('span');
+  tagSpan.className = 'tag';
+  svgText(tagSpan, entry.tag + ' ');
+
+  const msgSpan = document.createElement('span');
+  svgText(msgSpan, entry.msg);
+
+  div.append(tsSpan, tagSpan, msgSpan);
+  logEl.appendChild(div);
+  requestAnimationFrame(() => { div.classList.add('visible'); logEl.scrollTop = logEl.scrollHeight; });
+  while (logEl.children.length > 40) logEl.removeChild(logEl.firstChild);
+}
+
+// ── Animation ─────────────────────────────────────────────────────────────────
+let animating = false, stepIndex = 0, animTimer = null;
+let activeNode = null, activeEdge = null;
+
+function setNodeActive(id, on) {
+  const rect = document.getElementById('rect-'+id);
+  const ring  = document.getElementById('ring-'+id);
+  if (!rect || !ring) return;
+  const n = nodeById(id);
+  if (on) {
+    rect.setAttribute('filter', 'drop-shadow(0 0 8px ' + (n?.border||'#1f6feb') + '88)');
+    rect.setAttribute('stroke-width', '2.5');
+    ring.classList.add('animating');
+  } else {
+    rect.removeAttribute('filter');
+    rect.setAttribute('stroke-width', '1.5');
+    ring.classList.remove('animating');
+    ring.style.opacity = '0';
+  }
+}
+
+function setEdgeActive(key, on) {
+  const path = edgePaths[key];
+  if (!path) return;
+  if (on) { path.classList.add('active'); path.setAttribute('marker-end','url(#arrow-active)'); }
+  else     { path.classList.remove('active'); path.setAttribute('marker-end','url(#arrow-default)'); }
+}
+
+function updateProgress(idx) {
+  const pct = Math.round((idx / (SEQUENCE.length-1)) * 100);
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-pct').textContent = pct + '%';
+  const n = nodeById(SEQUENCE[idx]?.node);
+  document.getElementById('progress-step').textContent = n?.label || '...';
+}
+
+function runStep() {
+  if (stepIndex >= SEQUENCE.length) {
+    animating = false;
+    const btn = document.getElementById('play-btn');
+    btn.textContent = 'Run Pipeline';
+    btn.disabled = false;
+    return;
+  }
+  const step = SEQUENCE[stepIndex];
+  if (activeNode) setNodeActive(activeNode, false);
+  if (activeEdge) setEdgeActive(activeEdge, false);
+  setNodeActive(step.node, true);
+  if (step.edge) setEdgeActive(step.edge, true);
+  activeNode = step.node;
+  activeEdge = step.edge;
+  const n = nodeById(step.node);
+  if (n) showInfo(n);
+  if (step.log) addLog(step.log);
+  updateProgress(stepIndex);
+  stepIndex++;
+  const speed = parseInt(document.getElementById('speed-select').value, 10);
+  animTimer = setTimeout(runStep, speed);
+}
+
+function startAnimation() {
+  if (animating) return;
+  animating = true;
+  const btn = document.getElementById('play-btn');
+  btn.disabled = true;
+  btn.textContent = 'Running...';
+  runStep();
+}
+
+function resetAll() {
+  clearTimeout(animTimer);
+  animating = false;
+  stepIndex = 0;
+  if (activeNode) setNodeActive(activeNode, false);
+  if (activeEdge) setEdgeActive(activeEdge, false);
+  activeNode = null; activeEdge = null;
+  document.getElementById('progress-fill').style.width = '0%';
+  document.getElementById('progress-pct').textContent = '0%';
+  document.getElementById('progress-step').textContent = 'Waiting';
+  const btn = document.getElementById('play-btn');
+  btn.disabled = false;
+  btn.textContent = 'Run Pipeline';
+  const p = document.createElement('p');
+  p.style.cssText = 'font-size:12px;color:#7d8590';
+  svgText(p, 'Click a node or press Run Pipeline to start the animation.');
+  document.getElementById('agent-info').replaceChildren(p);
+  logEl.textContent = '';
+}
+
+document.getElementById('play-btn').addEventListener('click', startAnimation);
+document.getElementById('reset-btn').addEventListener('click', resetAll);
+
+setTimeout(() => addLog({ type:'info', tag:'[System]', msg:'Visualizer ready. Press Run to animate.' }), 300);
+</script>
+</body>
+</html>
