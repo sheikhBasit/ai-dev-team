@@ -43,6 +43,10 @@ MAX_PHASE_REJECTIONS = 5  # max times user can reject a single phase
 
 def init_node(state: State) -> dict:
     """Initialize: detect project, build index, set sandbox, create git branch, load memory."""
+    from ai_team.bus import bus as _agent_bus
+
+    _agent_bus.reset()
+
     project_dir = state.get("project_dir", "")
 
     # Set file sandbox
@@ -123,6 +127,7 @@ def init_node(state: State) -> dict:
         "codebase_index": index,
         "phase_rejections": 0,
         "messages": ["[Init] Project detected. Codebase indexed. RAG index ready. Pipeline starting."],
+        "agent_messages": [],
     }
 
 

@@ -46,6 +46,10 @@ def coder_agent(state: dict) -> dict:
     feedback = state.get("human_feedback", "")
     iteration = state.get("iteration", 0)
 
+    from ai_team.bus import bus  # noqa: PLC0415
+
+    inbox = bus.consume("coder")
+
     # If coming from a failed evaluation, include findings
     review = state.get("review_findings", [])
     tests = state.get("test_results", [])
@@ -99,6 +103,10 @@ Instructions:
 4. Run linters on every file you touch
 5. List every file you created or modified"""
 
+    if inbox:
+        inbox_text = "\n".join(f"[{m['role']}]: {m['content']}" for m in inbox)
+        user_msg += f"\n\nMessages from team:\n{inbox_text}"
+
     if feedback:
         user_msg += f"\n\nUser feedback:\n{feedback}"
 
@@ -139,8 +147,11 @@ Instructions:
         agent_name="coder",
     )
 
+    bus.publish("coder", f"Working on: {architecture[:200]}", to_role="all")
+
     return {
         "code_changes": changed_files,
         "phase": "review",
         "messages": [f"[Coder] {'Fixed' if is_fix_iteration else 'Modified'} {len(changed_files)} files: {', '.join(changed_files[:10])}"],
+        "agent_messages": bus.as_state_messages(),
     }

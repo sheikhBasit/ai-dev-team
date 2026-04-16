@@ -83,6 +83,10 @@ Start with search_codebase to quickly locate relevant code."""
 
     architecture = response.content
 
+    from ai_team.bus import bus  # noqa: PLC0415
+
+    bus.publish("architect", f"Architecture decision: {architecture[:500]}", to_role="coder")
+
     approval = interrupt({
         "agent": "Architect Agent",
         "phase": "architecture",
@@ -96,6 +100,7 @@ Start with search_codebase to quickly locate relevant code."""
             "phase": "code",
             "phase_rejections": 0,
             "messages": ["[Architect] Architecture approved by user."],
+            "agent_messages": bus.as_state_messages(),
         }
     else:
         rejections = state.get("phase_rejections", 0) + 1
@@ -104,4 +109,5 @@ Start with search_codebase to quickly locate relevant code."""
             "phase": "architecture",
             "phase_rejections": rejections,
             "messages": [f"[Architect] User requested changes ({rejections}/5): {approval.get('feedback', '')}"],
+            "agent_messages": bus.as_state_messages(),
         }

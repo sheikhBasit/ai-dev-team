@@ -59,7 +59,17 @@ Instructions:
     for f in findings:
         f["agent"] = "reviewer"
 
+    from ai_team.bus import bus  # noqa: PLC0415
+
+    critical = [f for f in findings if f.get("severity") in ("critical", "high", "error")]
+    if critical:
+        msg = f"Review found {len(critical)} critical issues: " + "; ".join(
+            f.get("message", "")[:80] for f in critical[:3]
+        )
+        bus.publish("reviewer", msg, to_role="coder")
+
     return {
         "review_findings": findings,
         "messages": [f"[Reviewer] {len(findings)} findings."],
+        "agent_messages": bus.as_state_messages(),
     }
