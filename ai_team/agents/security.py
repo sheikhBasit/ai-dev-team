@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from ai_team.agents.react_loop import parse_findings, react_loop
-from ai_team.config import get_llm
 
 
 SYSTEM_PROMPT = """You are a Senior Security Engineer performing a security audit.
@@ -30,7 +29,7 @@ If no issues found:
 
 def security_agent(state: dict) -> dict:
     """Audit code for security vulnerabilities."""
-    llm = get_llm()
+    llm = get_llm_for_agent("security")
     code_changes = state.get("code_changes", [])
     project_dir = state.get("project_dir", "")
 

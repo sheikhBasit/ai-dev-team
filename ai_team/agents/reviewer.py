@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from ai_team.agents.react_loop import parse_findings, react_loop
-from ai_team.config import get_llm
 
 
 SYSTEM_PROMPT = """You are a Senior Tech Lead performing a thorough code review.
@@ -28,7 +27,7 @@ Be thorough but fair. Don't flag style issues that linters handle."""
 
 def reviewer_agent(state: dict) -> dict:
     """Review code changes."""
-    llm = get_llm()
+    llm = get_llm_for_agent("reviewer")
     code_changes = state.get("code_changes", [])
     project_dir = state.get("project_dir", "")
     architecture = state.get("architecture_spec", "")

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from ai_team.agents.react_loop import react_loop
-from ai_team.config import get_llm
 
 
 SYSTEM_PROMPT = """You are a Senior Software Engineer. You write clean, production-ready code.
@@ -17,10 +16,11 @@ Rules:
 - Match the project's import style and structure
 
 You have tools to:
+- search_codebase: Semantic search — find relevant code by description (use this first)
 - read_file: Read existing code to understand patterns
 - write_file: Create new files
 - edit_file: Modify existing files (preferred over write_file)
-- search_files: Find code patterns in the codebase
+- search_files: Find code patterns in the codebase via regex
 - list_directory: Explore project structure
 - run_command: Run linters, formatters, tests
 
@@ -35,7 +35,7 @@ Report every file you created or modified."""
 
 def coder_agent(state: dict) -> dict:
     """Write code based on the architecture spec."""
-    llm = get_llm()
+    llm = get_llm_for_agent("coder")
     architecture = state.get("architecture_spec", "")
     requirements = state.get("requirements_spec", "")
     design = state.get("design_spec", "")
@@ -83,10 +83,11 @@ Project Directory: {project_dir}
     if not is_fix_iteration:
         user_msg += """
 Instructions:
-1. Read the existing code to understand patterns
-2. Implement the changes described in the architecture spec
-3. Run linters on every file you touch
-4. List every file you created or modified"""
+1. Use search_codebase to find relevant existing code before reading files
+2. Read the specific files identified to understand patterns exactly
+3. Implement the changes described in the architecture spec
+4. Run linters on every file you touch
+5. List every file you created or modified"""
 
     if feedback:
         user_msg += f"\n\nUser feedback:\n{feedback}"

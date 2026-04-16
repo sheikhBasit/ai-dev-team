@@ -5,7 +5,6 @@ from __future__ import annotations
 from langgraph.types import interrupt
 
 from ai_team.agents.react_loop import invoke_llm_with_retry
-from ai_team.config import get_llm
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -27,7 +26,7 @@ Ask clarifying questions if the request is ambiguous — do NOT assume."""
 
 def requirements_agent(state: dict) -> dict:
     """Gather requirements and produce a PRD spec."""
-    llm = get_llm()
+    llm = get_llm_for_agent("requirements")
     task = state["task"]
     project_dir = state.get("project_dir", "")
     project_context = state.get("project_context", "")

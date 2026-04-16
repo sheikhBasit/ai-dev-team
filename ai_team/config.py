@@ -192,6 +192,27 @@ def get_llm(
     return cls(**kwargs)
 
 
+AGENT_ROLE_DEFAULTS: dict[str, str] = {
+    "requirements": os.getenv("AGENT_MODEL_REQUIREMENTS", os.getenv("LLM_MODEL_CHEAP", "")),
+    "designer":     os.getenv("AGENT_MODEL_DESIGNER",     os.getenv("LLM_MODEL_CHEAP", "")),
+    "evaluator":    os.getenv("AGENT_MODEL_EVALUATOR",    os.getenv("LLM_MODEL_CHEAP", "")),
+    "docs":         os.getenv("AGENT_MODEL_DOCS",         os.getenv("LLM_MODEL_CHEAP", "")),
+    "architect":    os.getenv("AGENT_MODEL_ARCHITECT",    ""),
+    "coder":        os.getenv("AGENT_MODEL_CODER",        ""),
+    "reviewer":     os.getenv("AGENT_MODEL_REVIEWER",     ""),
+    "tester":       os.getenv("AGENT_MODEL_TESTER",       ""),
+    "security":     os.getenv("AGENT_MODEL_SECURITY",     ""),
+    "planner":      os.getenv("AGENT_MODEL_PLANNER",      ""),
+    "debugger":     os.getenv("AGENT_MODEL_DEBUGGER",     ""),
+}
+
+
+def get_llm_for_agent(agent_name: str, temperature=None, max_tokens=None):
+    """Return an LLM instance for the given agent role, respecting per-agent model overrides."""
+    model_override = AGENT_ROLE_DEFAULTS.get(agent_name, "") or None
+    return get_llm(model_override=model_override, temperature=temperature, max_tokens=max_tokens)
+
+
 def get_project_dir(override: str | None = None) -> str:
     """Get the project directory to work on."""
     return override or os.getenv(

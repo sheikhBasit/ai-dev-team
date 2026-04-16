@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from ai_team.agents.react_loop import categorize_test_error, parse_findings, react_loop
-from ai_team.config import get_llm
 
 
 SYSTEM_PROMPT = """You are a Senior QA Engineer. You write comprehensive tests and run them.
@@ -38,7 +37,7 @@ Use severity "critical" for failing tests, "pass" if all tests pass."""
 
 def tester_agent(state: dict) -> dict:
     """Write and run tests."""
-    llm = get_llm()
+    llm = get_llm_for_agent("tester")
     code_changes = state.get("code_changes", [])
     project_dir = state.get("project_dir", "")
     requirements = state.get("requirements_spec", "")
@@ -60,7 +59,7 @@ Project directory: {project_dir}
         # Include test files from index
         test_lines = [l for l in codebase_index.splitlines() if "test" in l.lower()]
         if test_lines:
-            user_msg += f"\nExisting test files:\n" + "\n".join(test_lines[:15]) + "\n"
+            user_msg += "\nExisting test files:\n" + "\n".join(test_lines[:15]) + "\n"
 
     user_msg += """
 Instructions:

@@ -5,7 +5,6 @@ from __future__ import annotations
 from langgraph.types import interrupt
 
 from ai_team.agents.react_loop import react_loop
-from ai_team.config import get_llm
 
 
 SYSTEM_PROMPT = """You are a Senior Solution Architect. You design the technical implementation
@@ -49,7 +48,7 @@ Reference specific files and line numbers from the codebase."""
 
 def architect_agent(state: dict) -> dict:
     """Design the technical architecture."""
-    llm = get_llm()
+    llm = get_llm_for_agent("architect")
     spec = state.get("requirements_spec", "")
     design = state.get("design_spec", "")
     project_dir = state.get("project_dir", "")
@@ -64,11 +63,11 @@ Design Spec:
 Project Directory: {project_dir}
 
 Instructions:
-1. First, explore the project structure using list_directory and read_file
-2. Understand existing patterns by reading key files
+1. Use search_codebase to find relevant existing patterns (e.g. "how are endpoints structured", "database models", "auth middleware")
+2. Read the specific files identified to understand patterns deeply
 3. Then produce the architecture document
 
-Start by listing the project directory to understand the structure."""
+Start with search_codebase to quickly locate relevant code."""
 
     if feedback:
         user_msg += f"\n\nArchitecture feedback from user:\n{feedback}"

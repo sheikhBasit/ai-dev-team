@@ -5,7 +5,6 @@ from __future__ import annotations
 from langgraph.types import interrupt
 
 from ai_team.agents.react_loop import invoke_llm_with_retry
-from ai_team.config import get_llm
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -43,7 +42,7 @@ Nothing more, nothing less for that decision line."""
 
 def designer_agent(state: dict) -> dict:
     """Generate UI designs as working component code."""
-    llm = get_llm(temperature=0.3)  # Slightly creative for design
+    llm = get_llm_for_agent("designer", temperature=0.3)  # Slightly creative for design
     spec = state.get("requirements_spec", "")
     project_context = state.get("project_context", "")
     feedback = state.get("human_feedback", "")

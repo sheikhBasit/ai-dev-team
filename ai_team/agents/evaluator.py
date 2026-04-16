@@ -9,7 +9,6 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.types import Command
 
 from ai_team.agents.react_loop import invoke_llm_with_retry
-from ai_team.config import get_llm
 
 logger = logging.getLogger("ai_team.agents.evaluator")
 
@@ -34,7 +33,7 @@ List the critical/warn issues that need fixing (if any)."""
 
 def evaluator_agent(state: dict) -> Command[Literal["coder", "learn_lessons"]]:
     """Evaluate all findings and decide: ship or loop back."""
-    llm = get_llm()
+    llm = get_llm_for_agent("evaluator")
     review = state.get("review_findings", [])
     tests = state.get("test_results", [])
     security = state.get("security_findings", [])
