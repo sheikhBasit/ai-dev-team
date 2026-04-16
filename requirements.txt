@@ -11,6 +11,10 @@ prompt_toolkit>=3.0.0
 # Telegram bot (optional — install with: pip install python-telegram-bot)
 # python-telegram-bot>=21.0
 
+# Web dashboard (optional — install with: pip install fastapi uvicorn)
+# fastapi>=0.110.0
+# uvicorn>=0.29.0
+
 # ── LLM Providers (uncomment what you use) ──────────────────────────────────
 
 # Anthropic (Claude) — best for coding

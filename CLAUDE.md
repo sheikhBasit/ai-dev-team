@@ -151,6 +151,11 @@ ai-dev-team/
 - Reply approve/reject from anywhere
 - Set up: get token from @BotFather, add to .env
 
+### Web Dashboard (`think web`)
+- Live agent message stream at http://localhost:8765
+- WebSocket auto-reconnects if pipeline restarts
+- Color-coded by agent role
+
 ## Commands Reference
 
 ```bash
@@ -160,12 +165,14 @@ think "Add feature X"          # build
 think fix "Bug Y"              # fix
 think chat                     # chat mode
 think bot                      # telegram bot
+think web                      # live dashboard
 think resume <id>              # resume
 
 # Makefile (from project dir)
 make think                     # interactive
 make build task="..."          # build
 make fix task="..."            # fix
+make web                       # live dashboard
 make test                      # smoke tests
 make status                    # show config
 make setup                     # first-time setup

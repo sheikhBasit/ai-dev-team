@@ -4,7 +4,7 @@ PY := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
 PROJECT ?= $(shell grep DEFAULT_PROJECT_DIR .env 2>/dev/null | grep -v '^\#' | cut -d= -f2 || echo ".")
 
-.PHONY: install setup think build fix review chat bot test clean status rag-status rag-rebuild help
+.PHONY: install setup think build fix review chat bot web test clean status rag-status rag-rebuild help
 
 # ── The one command you need ─────────────────────────────────────────────────
 
@@ -18,6 +18,9 @@ chat: ## Chat with your AI team (messaging CLI)
 
 bot: ## Start Telegram bot (control from phone)
 	@source $(VENV)/bin/activate && python bot.py
+
+web: ## Start live dashboard (http://localhost:8765)
+	@source $(VENV)/bin/activate && python -m ai_team.web.app
 
 # ── Pipeline shortcuts ───────────────────────────────────────────────────────
 
