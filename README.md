@@ -1,6 +1,6 @@
 # AI Dev Team
 
-> Autonomous AI engineering team powered by LangGraph. Describe what to build — agents handle requirements, architecture, coding, review, testing, security, and CI. You approve at checkpoints.
+> Autonomous AI engineering team powered by LangGraph. Describe what to build — agents handle requirements, architecture, planning, coding, review, testing, security, debugging, docs, and CI. You approve at checkpoints.
 
 **Works with 12 LLM providers** — Claude, GPT-4, Gemini, Groq (free), DeepSeek, Mistral, Ollama (local/free), and more. One command to start: `think`.
 
@@ -11,10 +11,13 @@
 You describe a task. The pipeline runs end-to-end with human approval at critical points.
 
 ```
-START → init → requirements → designer → architect → preflight
-      → coder → git_commit → [reviewer + tester + security] (parallel)
-      → evaluator → learn_lessons → ci_check → human_final_review → END
-                  ↗ (fail loop, max N iterations)
+START → init → requirements → designer → architect → preflight → planner
+      → coder → import_healer → git_commit
+      → [reviewer + tester + security + debugger] (parallel)
+      → evaluator → learn_lessons → docs → ci_check → human_final_review
+      → [gh pr create] → END
+               ↑
+        (fail loop, max N iterations)
 ```
 
 **Human approval checkpoints:** Requirements spec · Architecture plan · Final diff
@@ -26,12 +29,28 @@ START → init → requirements → designer → architect → preflight
 | Agent | Role |
 |-------|------|
 | Requirements | Writes full PRD from your task description |
+| Designer | UI/UX component design |
 | Architect | Reads your codebase, designs the solution |
-| Coder | Writes the actual code (30 tool iterations) |
-| Reviewer | Tech lead code review |
+| **Planner** | Breaks task into structured WorkItems for the coder |
+| Coder | Writes the actual code (30 tool iterations, RAG-assisted) |
+| Reviewer | Tech lead review — uses semantic codebase search for context |
 | Tester | Writes and runs tests |
 | Security | OWASP audit |
-| Evaluator | Ship / no-ship decision |
+| **Debugger** | Root-cause analysis of test/review failures |
+| **Docs** | Updates docstrings and README sections for changed files |
+| Evaluator | Ship / no-ship decision, reads debug report |
+
+**New infrastructure:**
+
+| Feature | What it does |
+|---------|-------------|
+| **RAG codebase search** | Hybrid BM25 + semantic search over your entire codebase — agents find related code before writing |
+| **Agent chat bus** | In-process pub/sub so agents message each other (architect → coder, reviewer → coder) |
+| **Per-agent model routing** | Set `AGENT_MODEL_CODER=claude-opus-4-7`, `LLM_MODEL_CHEAP=claude-haiku-4-5` etc. per role |
+| **Self-healing imports** | Detects `ModuleNotFoundError` in coder output, auto-installs from a safe allowlist |
+| **GitHub PR auto-open** | After your approval, opens a PR via `gh` CLI automatically |
+| **Live dashboard** | WebSocket stream of all agent messages at `http://localhost:8765` (`make web`) |
+| **Session memory** | Lessons learned per project, loaded at start of every future session via RAG |
 
 ---
 
@@ -53,10 +72,13 @@ OPENAI_COMPAT_BASE_URL=https://api.groq.com/openai/v1
 OPENAI_COMPAT_API_KEY=your_groq_key   # free at console.groq.com
 
 # Or Claude (best results)
-LLM_MODEL=claude-sonnet-4-20250514
+LLM_MODEL=claude-sonnet-4-6
 ANTHROPIC_API_KEY=your_key
 
-# Or local — no API key at all
+# Route cheap agents (requirements, docs) to a faster/cheaper model
+LLM_MODEL_CHEAP=claude-haiku-4-5-20251001
+
+# Or fully local — no API key at all
 LLM_PROVIDER=ollama
 LLM_MODEL=qwen2.5-coder:14b
 ```
@@ -67,6 +89,7 @@ Then point it at your project and run:
 think "Add rate limiting to the API"
 think fix "JWT tokens not expiring correctly"
 think chat    # persistent conversation mode
+make web      # open live dashboard at http://localhost:8765
 ```
 
 ---
@@ -89,6 +112,28 @@ make think
 make build task="Add caching layer"
 make fix task="Null pointer in auth"
 make resume id=<thread-id>
+make web                       # live agent dashboard
+make rag-status                # show RAG index stats
+make rag-rebuild               # force-rebuild semantic index
+```
+
+---
+
+## Per-Agent Model Routing
+
+Route expensive agents to powerful models and cheap agents to fast ones:
+
+```bash
+# .env
+LLM_MODEL=claude-sonnet-4-6           # default for all agents
+LLM_MODEL_CHEAP=claude-haiku-4-5-20251001  # fast agents use this
+
+# Override per role
+AGENT_MODEL_CODER=claude-opus-4-7
+AGENT_MODEL_ARCHITECT=claude-opus-4-7
+AGENT_MODEL_REQUIREMENTS=claude-haiku-4-5-20251001
+AGENT_MODEL_DESIGNER=claude-haiku-4-5-20251001
+AGENT_MODEL_EVALUATOR=claude-haiku-4-5-20251001
 ```
 
 ---
@@ -100,7 +145,7 @@ make resume id=<thread-id>
 | **Groq** | `llama-3.3-70b-versatile` | Free tier |
 | **Ollama** | `qwen2.5-coder:14b`, `llama3.3` | Free (local) |
 | **DeepSeek** | `deepseek-chat` | Very cheap |
-| **Anthropic** | `claude-sonnet-4-20250514` | Paid |
+| **Anthropic** | `claude-sonnet-4-6` | Paid |
 | **OpenAI** | `gpt-4o`, `o4-mini` | Paid |
 | **Google** | `gemini-2.5-pro` | Paid |
 | **Mistral** | `mistral-large-latest` | Paid |
@@ -109,13 +154,6 @@ make resume id=<thread-id>
 | **OpenAI-compat** | any vLLM / LM Studio model | Self-hosted |
 
 Provider is **auto-detected from the model name** — no extra config needed for most cases.
-
-Override per-run without touching `.env`:
-
-```bash
-think --model claude-sonnet-4-20250514 "Add rate limiting"
-LLM_MODEL=gpt-4o think "Review this PR"
-```
 
 ---
 
@@ -156,6 +194,15 @@ think bot   # start the bot
 
 Send tasks as messages. Bot sends you approval requests — reply `approve` or `reject`.
 
+**Live Dashboard:**
+
+```bash
+pip install fastapi uvicorn
+make web    # starts at http://localhost:8765
+```
+
+Watch all agent messages stream in real-time, color-coded by role.
+
 ---
 
 ## Sessions & Memory
@@ -166,13 +213,14 @@ Sessions are persisted in SQLite — resume any past run:
 think resume 2126cbb9-aae8-48fd-9a5b-be326bf576d8
 ```
 
-The pipeline learns from each session — lessons are saved per-project and loaded at the start of the next run.
+The pipeline learns from each session. Lessons are saved per-project, embedded via RAG, and only the task-relevant ones are loaded at the start of the next run.
 
 ```
 ~/.ai-dev-team/
 ├── checkpoints.db      # resumable session state
 ├── logs/               # structured agent logs
-└── memory/             # lessons learned per project
+├── memory/             # lessons learned per project
+└── rag/                # semantic codebase + lessons index
 ```
 
 ---
@@ -182,6 +230,7 @@ The pipeline learns from each session — lessons are saved per-project and load
 - **Command allowlist** — agents can only run `pytest`, `ruff`, `git`, `python`, `pip`. `rm`, `sudo`, `kill` are blocked.
 - **Path sandboxing** — agents read/write only within the target project directory.
 - **Credential scrubbing** — API keys and tokens are redacted from all agent output.
+- **Import allowlist** — self-healing node only installs packages from a vetted 35-package list.
 
 ---
 
@@ -196,22 +245,35 @@ ai-dev-team/
 ├── requirements.txt
 ├── .env.example
 └── ai_team/
-    ├── config.py       # Multi-provider LLM config (12 providers)
-    ├── state.py        # LangGraph state schema
-    ├── graph.py        # Pipeline orchestrator (15 nodes)
+    ├── config.py       # Multi-provider LLM config (12 providers, per-agent routing)
+    ├── state.py        # LangGraph state schema (WorkItem, AgentMessage, etc.)
+    ├── graph.py        # Pipeline orchestrator (19 nodes)
+    ├── bus.py          # In-process agent chat bus
     ├── agents/
+    │   ├── planner.py      # NEW: task → WorkItems
+    │   ├── debugger.py     # NEW: root cause analysis
+    │   ├── docs.py         # NEW: docstring updater
+    │   ├── import_healer.py # NEW: auto-install missing packages
     │   ├── requirements.py
     │   ├── designer.py
     │   ├── architect.py
     │   ├── coder.py
-    │   ├── reviewer.py
+    │   ├── reviewer.py     # UPGRADED: RAG-aware
     │   ├── tester.py
     │   ├── security.py
     │   └── evaluator.py
-    └── tools/
-        └── shell_tools.py
+    ├── rag/
+    │   ├── chunker.py      # Semantic code chunking
+    │   ├── store.py        # Diff-aware vector index
+    │   ├── hybrid_search.py # BM25 + semantic RRF fusion
+    │   └── lessons_rag.py  # Per-task lesson retrieval
+    ├── tools/
+    │   ├── shell_tools.py  # Sandboxed file ops + shell
+    │   └── rag_tools.py    # search_codebase, reindex_codebase
+    └── web/
+        └── app.py          # FastAPI live dashboard
 ```
 
 ---
 
-Built by [Abdul Basit](https://github.com/sheikhBasit) · FastAPI · LangGraph · Python 3.11
+Built by [Abdul Basit](https://github.com/sheikhBasit) · LangGraph · FastAPI · Python 3.11
