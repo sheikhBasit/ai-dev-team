@@ -276,6 +276,54 @@ def learn_lessons_node(state: State) -> dict:
     return {"messages": ["[Memory] No new lessons to save."]}
 
 
+# ── GitHub PR helper ─────────────────────────────────────────────────────────
+
+def _open_github_pr(project_dir: str, task: str, branch_name: str) -> str:
+    """Open a GitHub PR using gh CLI. Returns PR URL or empty string on failure."""
+    if not project_dir or not Path(project_dir).joinpath(".git").exists():
+        return ""
+
+    # Check gh is available
+    try:
+        result = subprocess.run(
+            ["gh", "--version"], capture_output=True, timeout=5
+        )
+        if result.returncode != 0:
+            return ""
+    except FileNotFoundError:
+        return ""
+
+    # Check there's a GitHub remote
+    try:
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=project_dir, capture_output=True, text=True, timeout=5,
+        )
+        if "github.com" not in result.stdout:
+            return ""
+    except Exception:
+        return ""
+
+    # Create the PR
+    title = task[:72] if task else "AI Dev Team changes"
+    body = f"Automated PR created by AI Dev Team\n\nTask: {task}"
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "create", "--title", title, "--body", body, "--head", branch_name],
+            cwd=project_dir, capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode == 0:
+            url = result.stdout.strip()
+            logger.info("GitHub PR opened: %s", url)
+            return url
+        else:
+            logger.warning("gh pr create failed: %s", result.stderr[:200])
+            return ""
+    except Exception as e:
+        logger.warning("PR creation failed: %s", e)
+        return ""
+
+
 # ── Final human review with git diff ────────────────────────────────────────
 
 def human_final_review(state: State) -> dict:
@@ -324,10 +372,20 @@ def human_final_review(state: State) -> dict:
     })
 
     if approval.get("decision") == "approved":
+        task = state.get("task", "")
+        # Reconstruct branch name same way init_node does
+        task_slug = re.sub(r"[^a-z0-9-]", "-", task[:40].lower())
+        task_slug = re.sub(r"-+", "-", task_slug).strip("-")
+        branch_name = f"ai-dev-team/{task_slug}"
+        pr_url = _open_github_pr(project_dir, task, branch_name)
         return {
             "phase": "done",
             "git_diff": diff_text,
-            "messages": ["[Ship] User approved. Ready to commit."],
+            "pr_url": pr_url,
+            "messages": [
+                "[Ship] User approved. Ready to commit."
+                + (f" PR: {pr_url}" if pr_url else ""),
+            ],
         }
     else:
         return {
