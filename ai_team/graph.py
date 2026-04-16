@@ -22,6 +22,7 @@ from ai_team.agents.memory import (
     format_lessons_for_prompt,
     save_lesson,
 )
+from ai_team.agents.planner import planner_agent
 from ai_team.agents.project_detector import detect_project_context
 from ai_team.agents.requirements import requirements_agent
 from ai_team.agents.reviewer import reviewer_agent
@@ -385,6 +386,7 @@ def build_graph():
     builder.add_node("designer", designer_agent)
     builder.add_node("architect", architect_agent)
     builder.add_node("preflight", preflight_node)
+    builder.add_node("planner", planner_agent)
     builder.add_node("coder", coder_agent)
     builder.add_node("git_commit", git_commit_node)
     builder.add_node("reviewer", reviewer_agent)
@@ -408,8 +410,9 @@ def build_graph():
     # Phase 3: Architecture (with human approval loop) → preflight
     builder.add_conditional_edges("architect", route_after_architecture)
 
-    # Phase 3.5: Preflight → coder
-    builder.add_edge("preflight", "coder")
+    # Phase 3.5: Preflight → planner → coder
+    builder.add_edge("preflight", "planner")
+    builder.add_edge("planner", "coder")
 
     # Phase 4: Code → git commit → parallel verification
     builder.add_edge("coder", "git_commit")

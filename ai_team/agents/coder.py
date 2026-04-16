@@ -81,6 +81,15 @@ Project Directory: {project_dir}
     if codebase_index:
         user_msg += f"\nCodebase Index (existing code map):\n{codebase_index[:2000]}\n"
 
+    work_items = state.get("work_items", [])
+    if work_items and not is_fix_iteration:
+        items_text = "\n".join(
+            f"  {i+1}. [{wi.get('priority', 2)}] {wi.get('title', '')}: {wi.get('description', '')}"
+            + (f" (files: {', '.join(wi.get('files_hint', []))})" if wi.get('files_hint') else "")
+            for i, wi in enumerate(work_items)
+        )
+        user_msg += f"\n\nWork plan:\n{items_text}"
+
     if not is_fix_iteration:
         user_msg += """
 Instructions:
