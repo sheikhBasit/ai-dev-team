@@ -331,4 +331,9 @@ def run_command(command: str, working_dir: str = ".") -> str:
         return f"ERROR running command: {_scrub_secrets(str(e))}"
 
 
-ALL_TOOLS = [read_file, write_file, edit_file, list_directory, search_files, run_command]
+from ai_team.tools.rag_tools import rag_index_status, reindex_codebase, search_codebase  # noqa: E402
+
+ALL_TOOLS = [
+    read_file, write_file, edit_file, list_directory, search_files, run_command,
+    search_codebase, reindex_codebase, rag_index_status,
+]

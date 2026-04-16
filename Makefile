@@ -4,7 +4,7 @@ PY := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
 PROJECT ?= $(shell grep DEFAULT_PROJECT_DIR .env 2>/dev/null | grep -v '^\#' | cut -d= -f2 || echo ".")
 
-.PHONY: install setup think build fix review chat bot test clean status help
+.PHONY: install setup think build fix review chat bot test clean status rag-status rag-rebuild help
 
 # ── The one command you need ─────────────────────────────────────────────────
 
@@ -87,6 +87,25 @@ status: ## Show current project config
 	@echo "Logs:     ~/.ai-dev-team/logs/"
 	@echo "Memory:   ~/.ai-dev-team/memory/"
 	@echo "History:  ~/.ai-dev-team/chat_history.json"
+
+rag-status: ## Show RAG index stats for the current project
+	@source $(VENV)/bin/activate && python -c "\
+from ai_team.rag.store import index_stats; \
+from ai_team.config import get_project_dir; \
+import json; \
+s = index_stats(get_project_dir('$(PROJECT)')); \
+print(json.dumps(s, indent=2)); \
+"
+
+rag-rebuild: ## Force-rebuild the RAG index for the current project
+	@source $(VENV)/bin/activate && python -c "\
+from ai_team.rag.store import build_index; \
+from ai_team.config import get_project_dir; \
+p = get_project_dir('$(PROJECT)'); \
+print('Rebuilding index for:', p); \
+build_index(p, force=True); \
+print('Done.'); \
+"
 
 clean: ## Remove venv and cache
 	rm -rf $(VENV) __pycache__ ai_team/__pycache__ ai_team/agents/__pycache__ ai_team/tools/__pycache__

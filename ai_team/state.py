@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import operator
 from typing import Annotated, Literal
+from typing import TypedDict as _TypedDict
 
 from typing_extensions import TypedDict
 
@@ -28,12 +29,17 @@ class AgentFinding(TypedDict, total=False):
     line: int
 
 
-class WorkItem(TypedDict, total=False):
-    """Tracks a single unit of work from the architecture spec."""
-    id: str
+class AgentMessage(_TypedDict):
+    role: str       # which agent sent it (e.g. "coder", "reviewer")
+    content: str    # message text
+    timestamp: str  # ISO format timestamp
+
+
+class WorkItem(_TypedDict):
+    title: str
     description: str
-    status: Literal["pending", "in_progress", "done", "failed"]
-    files: list[str]
+    files_hint: list[str]   # suggested files to touch
+    priority: int           # 1=high, 2=medium, 3=low
 
 
 def _keep_recent_messages(existing: list[str], new: list[str]) -> list[str]:
@@ -42,6 +48,11 @@ def _keep_recent_messages(existing: list[str], new: list[str]) -> list[str]:
     if len(combined) > 100:
         return combined[-100:]
     return combined
+
+
+def _replace_work_items(old: list, new: list) -> list:
+    """Work items are always replaced wholesale, not appended."""
+    return new if new else old
 
 
 class State(TypedDict, total=False):
@@ -70,8 +81,20 @@ class State(TypedDict, total=False):
     test_results: Annotated[list[AgentFinding], operator.add]
     security_findings: Annotated[list[AgentFinding], operator.add]
 
-    # Incremental work tracking
-    work_items: list[WorkItem]
+    # Planner output
+    work_items: Annotated[list[WorkItem], _replace_work_items]
+
+    # Debugger output
+    debugger_report: str
+
+    # Docs agent output
+    docs_output: str
+
+    # Agent-to-agent chat bus messages
+    agent_messages: Annotated[list[AgentMessage], operator.add]
+
+    # GitHub PR URL (set after final review)
+    pr_url: str
 
     # Evaluation
     evaluation: str

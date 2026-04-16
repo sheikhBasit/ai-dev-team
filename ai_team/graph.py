@@ -28,6 +28,7 @@ from ai_team.agents.reviewer import reviewer_agent
 from ai_team.agents.security import security_agent
 from ai_team.agents.tester import tester_agent
 from ai_team.state import State
+from ai_team.tools.rag_tools import set_rag_project
 from ai_team.tools.shell_tools import set_project_sandbox
 
 logger = logging.getLogger("ai_team.graph")
@@ -37,6 +38,7 @@ MAX_PHASE_REJECTIONS = 5  # max times user can reject a single phase
 
 # ── Init node — runs once at start ──────────────────────────────────────────
 
+
 def init_node(state: State) -> dict:
     """Initialize: detect project, build index, set sandbox, create git branch, load memory."""
     project_dir = state.get("project_dir", "")
@@ -44,6 +46,7 @@ def init_node(state: State) -> dict:
     # Set file sandbox
     if project_dir:
         set_project_sandbox(project_dir)
+        set_rag_project(project_dir)
         logger.info("Sandbox set to: %s", project_dir)
 
     # Detect project patterns
@@ -52,19 +55,50 @@ def init_node(state: State) -> dict:
         context = detect_project_context(project_dir)
         logger.info("Project context detected (%d chars)", len(context))
 
-    # Build codebase index
+    # Build codebase index (symbol map)
     index = ""
     if project_dir:
         index = build_codebase_index(project_dir)
         logger.info("Codebase indexed (%d chars)", len(index))
 
-    # Load lessons from previous sessions
-    lessons = ""
+    # Build RAG semantic index (background, skipped if up-to-date)
     if project_dir:
-        lessons = format_lessons_for_prompt(project_dir)
-        if lessons:
-            context += f"\n\n{lessons}"
-            logger.info("Loaded %d chars of lessons", len(lessons))
+        try:
+            from ai_team.rag.store import build_index
+
+            built = build_index(project_dir)
+            if built:
+                logger.info("RAG index built for %s", project_dir)
+                context += "\n\n[RAG] Semantic codebase search is available via search_codebase tool."
+            else:
+                logger.info("RAG index already up-to-date")
+        except Exception as e:
+            logger.warning("RAG index build failed (non-fatal): %s", e)
+
+    # Load task-relevant lessons via RAG (falls back to flat load if RAG unavailable)
+    task = state.get("task", "")
+    if project_dir:
+        try:
+            from ai_team.rag.lessons_rag import format_relevant_lessons, index_lessons
+            from ai_team.agents.memory import load_lessons
+
+            all_lessons = load_lessons(project_dir)
+            if all_lessons:
+                index_lessons(project_dir, all_lessons)
+                relevant = format_relevant_lessons(project_dir, task) if task else ""
+                if relevant:
+                    context += f"\n\n{relevant}"
+                    logger.info("Loaded relevant lessons via RAG")
+                else:
+                    # Fall back to flat load when no task yet or embedding unavailable
+                    flat = format_lessons_for_prompt(project_dir)
+                    if flat:
+                        context += f"\n\n{flat}"
+        except Exception as e:
+            logger.warning("Lessons RAG failed, using flat load: %s", e)
+            flat = format_lessons_for_prompt(project_dir)
+            if flat:
+                context += f"\n\n{flat}"
 
     # Create a working git branch
     if project_dir and Path(project_dir).joinpath(".git").exists():
@@ -86,7 +120,7 @@ def init_node(state: State) -> dict:
         "project_context": context,
         "codebase_index": index,
         "phase_rejections": 0,
-        "messages": ["[Init] Project detected. Codebase indexed. Pipeline starting."],
+        "messages": ["[Init] Project detected. Codebase indexed. RAG index ready. Pipeline starting."],
     }
 
 
