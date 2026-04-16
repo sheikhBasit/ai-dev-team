@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ai_team.agents.react_loop import parse_findings, react_loop
+from ai_team.config import get_llm_for_agent
 
 
 SYSTEM_PROMPT = """You are a Senior Security Engineer performing a security audit.

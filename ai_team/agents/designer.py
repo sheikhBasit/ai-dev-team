@@ -5,6 +5,7 @@ from __future__ import annotations
 from langgraph.types import interrupt
 
 from ai_team.agents.react_loop import invoke_llm_with_retry
+from ai_team.config import get_llm_for_agent
 
 from langchain_core.messages import HumanMessage, SystemMessage
 

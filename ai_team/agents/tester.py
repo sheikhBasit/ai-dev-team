@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ai_team.agents.react_loop import categorize_test_error, parse_findings, react_loop
+from ai_team.config import get_llm_for_agent
 
 
 SYSTEM_PROMPT = """You are a Senior QA Engineer. You write comprehensive tests and run them.

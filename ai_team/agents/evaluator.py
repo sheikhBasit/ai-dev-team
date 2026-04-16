@@ -9,6 +9,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.types import Command
 
 from ai_team.agents.react_loop import invoke_llm_with_retry
+from ai_team.config import get_llm_for_agent
 
 logger = logging.getLogger("ai_team.agents.evaluator")
 
