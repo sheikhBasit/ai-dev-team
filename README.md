@@ -19,6 +19,8 @@ START → init → requirements → designer → architect → preflight
 
 **Human approval checkpoints:** Requirements spec · Architecture plan · Final diff
 
+> **[Interactive Pipeline Visualizer](pipeline-viz.html)** — open in browser to see every agent, edge, and log stream animated step by step.
+
 **What each agent does:**
 
 | Agent | Role |
