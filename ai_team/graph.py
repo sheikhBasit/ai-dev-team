@@ -17,6 +17,7 @@ from ai_team.agents.codebase_indexer import build_codebase_index
 from ai_team.agents.coder import coder_agent
 from ai_team.agents.debugger import debugger_agent
 from ai_team.agents.designer import designer_agent
+from ai_team.agents.docs import docs_agent
 from ai_team.agents.evaluator import evaluator_agent
 from ai_team.agents.memory import (
     extract_lessons_from_evaluation,
@@ -402,6 +403,7 @@ def build_graph():
     builder.add_node("debugger", debugger_agent)
     builder.add_node("evaluator", evaluator_agent)
     builder.add_node("learn_lessons", learn_lessons_node)
+    builder.add_node("docs", docs_agent)
     builder.add_node("ci_check", ci_check_node)
     builder.add_node("human_final_review", human_final_review)
 
@@ -437,7 +439,8 @@ def build_graph():
     #  but we need to update evaluator to go to learn_lessons instead of human_final_review)
 
     # Phase 6.5: Learn lessons → CI check → human final review
-    builder.add_edge("learn_lessons", "ci_check")
+    builder.add_edge("learn_lessons", "docs")
+    builder.add_edge("docs", "ci_check")
     builder.add_edge("ci_check", "human_final_review")
 
     # Phase 7: Final → END
