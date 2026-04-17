@@ -43,7 +43,7 @@ def test_system_prompt_mentions_rust():
 
 
 @pytest.fixture()
-def _mock_dependencies():
+def mock_dependencies():
     """Patch react_loop and bus so no LLM or DB calls are made."""
     fake_ai_message = MagicMock()
     fake_ai_message.usage_metadata = {"input_tokens": 10, "output_tokens": 20}
@@ -78,32 +78,32 @@ def _run_agent(extra_state: dict | None = None):
     return frontend_desktop_agent(state)
 
 
-def test_returns_dict(_mock_dependencies):
+def test_returns_dict(mock_dependencies):
     result = _run_agent()
     assert isinstance(result, dict)
 
 
-def test_returns_code_changes_key(_mock_dependencies):
+def test_returns_code_changes_key(mock_dependencies):
     result = _run_agent()
     assert "code_changes" in result
 
 
-def test_returns_total_tokens_key(_mock_dependencies):
+def test_returns_total_tokens_key(mock_dependencies):
     result = _run_agent()
     assert "total_tokens" in result
 
 
-def test_returns_inject_message_key(_mock_dependencies):
+def test_returns_inject_message_key(mock_dependencies):
     result = _run_agent()
     assert "inject_message" in result
 
 
-def test_inject_message_cleared_on_return(_mock_dependencies):
+def test_inject_message_cleared_on_return(mock_dependencies):
     result = _run_agent({"inject_message": "should be cleared"})
     assert result["inject_message"] == ""
 
 
-def test_code_changes_is_list(_mock_dependencies):
+def test_code_changes_is_list(mock_dependencies):
     result = _run_agent()
     assert isinstance(result["code_changes"], list)
 
@@ -113,8 +113,8 @@ def test_code_changes_is_list(_mock_dependencies):
 # ---------------------------------------------------------------------------
 
 
-def test_react_loop_called_with_frontend_desktop_name(_mock_dependencies):
-    mock_loop, _, _ = _mock_dependencies
+def test_react_loop_called_with_frontend_desktop_name(mock_dependencies):
+    mock_loop, _, _ = mock_dependencies
     _run_agent()
     call_kwargs = mock_loop.call_args.kwargs if mock_loop.call_args.kwargs else {}
     call_args = mock_loop.call_args
@@ -129,8 +129,8 @@ def test_react_loop_called_with_frontend_desktop_name(_mock_dependencies):
 # ---------------------------------------------------------------------------
 
 
-def test_bus_publish_called_after_completion(_mock_dependencies):
-    _, _, mock_bus = _mock_dependencies
+def test_bus_publish_called_after_completion(mock_dependencies):
+    _, _, mock_bus = mock_dependencies
     _run_agent()
     mock_bus.publish.assert_called()
 
