@@ -20,6 +20,8 @@ Phase = Literal[
     "done",
 ]
 
+FrontendTarget = Literal["backend", "web", "mobile", "desktop"]
+
 
 class AgentFinding(TypedDict, total=False):
     agent: str
@@ -107,7 +109,7 @@ class State(TypedDict, total=False):
     human_feedback: str
 
     # Frontend routing
-    frontend_target: str  # "backend" | "web" | "mobile" | "desktop"
+    frontend_target: FrontendTarget
 
     # Auditor output
     audit_findings: Annotated[list[AgentFinding], operator.add]
