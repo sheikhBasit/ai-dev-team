@@ -175,11 +175,15 @@ def detect_frontend_target(project_dir: str, override: str | None = None) -> str
     5. ``package.json`` contains react/next/vue/svelte/vite → "web"
     6. Default → "backend"
     """
-    valid_overrides = {"web", "mobile", "desktop", "backend"}
-    if override in valid_overrides:
-        return override
+    if override is not None:
+        if override in {"web", "mobile", "desktop", "backend"}:
+            return override
+        logger.warning("detect_frontend_target: unknown override %r, ignoring", override)
 
     root = Path(project_dir).expanduser().resolve()
+
+    if not root.exists():
+        return "backend"
 
     if _find_file(root, "tauri.conf.json"):
         return "desktop"

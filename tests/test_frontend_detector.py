@@ -41,3 +41,12 @@ def test_override_beats_tauri_conf(tmp_path):
 
 def test_empty_directory_returns_backend(tmp_path):
     assert detect_frontend_target(str(tmp_path)) == "backend"
+
+
+def test_nonexistent_directory_returns_backend():
+    assert detect_frontend_target("/tmp/this_path_does_not_exist_ever_12345") == "backend"
+
+
+def test_malformed_package_json_returns_backend(tmp_path):
+    (tmp_path / "package.json").write_bytes(b"\xff\xfe")  # invalid UTF-8
+    assert detect_frontend_target(str(tmp_path)) == "backend"
