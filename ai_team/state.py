@@ -106,6 +106,18 @@ class State(TypedDict, total=False):
     # Human feedback (from interrupt)
     human_feedback: str
 
+    # Frontend routing
+    frontend_target: str  # "backend" | "web" | "mobile" | "desktop"
+
+    # Auditor output
+    audit_findings: Annotated[list[AgentFinding], operator.add]
+
+    # Dashboard intervention controls
+    paused: bool
+    inject_message: str
+    skip_current: bool
+    abort: bool
+
     # Token / cost tracking
     total_tokens: int
     total_cost: float
