@@ -46,3 +46,4 @@ langchain-openai>=0.3.0
 
 # Observability (optional)
 # langfuse>=2.0.0
+# deepeval>=2.0.0  # uncomment for DeepEval CI quality gate

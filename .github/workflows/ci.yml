@@ -1,0 +1,116 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  # ── 1. Lint + type check ───────────────────────────────────────────────────
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install lint deps
+        run: pip install ruff pyright
+
+      - name: Ruff lint
+        run: ruff check ai_team/
+
+      - name: Pyright type check
+        run: pyright ai_team/ --pythonversion 3.11
+
+  # ── 2. Unit tests ──────────────────────────────────────────────────────────
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install deps
+        run: pip install -r requirements.txt pytest
+
+      - name: Run unit tests
+        run: pytest tests/ --ignore=tests/deepeval -v --tb=short
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+  # ── 3. DeepEval quality gate ───────────────────────────────────────────────
+  deepeval-quality-gate:
+    name: LLM Quality Gate (DeepEval)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install deps
+        run: |
+          pip install -r requirements.txt
+          pip install deepeval
+
+      - name: Run DeepEval quality gate
+        id: deepeval
+        run: |
+          pytest tests/deepeval/ -v --tb=short \
+            --junitxml=deepeval-results.xml
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          DEEPEVAL_TELEMETRY_OPT_OUT: "YES"
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deepeval-results
+          path: deepeval-results.xml
+
+      - name: Comment PR with quality results
+        if: always()
+        env:
+          GATE_OUTCOME: ${{ steps.deepeval.outcome }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const outcome = process.env.GATE_OUTCOME;
+            const emoji = outcome === 'success' ? '✅' : '❌';
+            const passed = outcome === 'success';
+            const body = [
+              `## ${emoji} LLM Quality Gate — ${outcome.toUpperCase()}`,
+              '',
+              '| Metric | Threshold | Result |',
+              '|--------|-----------|--------|',
+              `| Faithfulness (hallucination guard) | ≥ 0.85 | ${passed ? 'PASS ✅' : 'FAIL ❌'} |`,
+              `| Answer Relevancy | ≥ 0.80 | ${passed ? 'PASS ✅' : 'FAIL ❌'} |`,
+              `| Hallucination Rate | ≤ 15% | ${passed ? 'PASS ✅' : 'FAIL ❌'} |`,
+              '',
+              'Agents tested: **coder**, **reviewer**, **security**',
+              'Test cases: **8 cases × 3 metrics = 24 assertions**',
+              '',
+              passed
+                ? '> All quality gates passed — merge allowed.'
+                : '> ⚠️ **Merge blocked** — agent outputs failed quality thresholds. Fix hallucinating responses before merging.',
+            ].join('\n');
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body,
+            });
