@@ -5,7 +5,25 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 from dataclasses import dataclass, field
+
+# ---------------------------------------------------------------------------
+# Redis connection — optional, graceful fallback to in-memory
+# ---------------------------------------------------------------------------
+
+try:
+    import redis as redis_lib
+
+    _redis = redis_lib.from_url(
+        os.getenv("REDIS_URL", "redis://localhost:6379"),
+        decode_responses=True,
+    )
+    _redis.ping()
+    logger_boot = logging.getLogger("ai_team.web")
+    logger_boot.info("Redis connected at %s", os.getenv("REDIS_URL", "redis://localhost:6379"))
+except Exception:
+    _redis = None  # type: ignore[assignment]
 
 try:
     from pydantic import BaseModel, Field
@@ -25,13 +43,125 @@ _MAX_OUTPUT = 2000
 # Control state
 # ---------------------------------------------------------------------------
 
+_REDIS_STATE_KEY = "ai_team:control"
+_REDIS_OUTPUT_KEY = "ai_team:live_output"
+
+
 @dataclass
 class ControlState:
+    """In-memory control state.
+
+    When Redis is available, all reads/writes go through Redis so that
+    multiple workers share the same state.  Falls back to this in-memory
+    object transparently when Redis is unavailable.
+    """
+
     paused: bool = False
     inject_message: str = ""
     skip_current: bool = False
     abort: bool = False
     live_output: list = field(default_factory=list)
+
+    # ------------------------------------------------------------------
+    # Redis helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _redis_get_state() -> dict:
+        """Read state dict from Redis; returns empty dict on any error."""
+        if _redis is None:
+            return {}
+        try:
+            raw = _redis.get(_REDIS_STATE_KEY)
+            return json.loads(raw) if raw else {}
+        except Exception:
+            return {}
+
+    @staticmethod
+    def _redis_set_state(data: dict) -> None:
+        """Write state dict to Redis; silently ignores errors."""
+        if _redis is None:
+            return
+        try:
+            _redis.set(_REDIS_STATE_KEY, json.dumps(data))
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------
+    # Paused property — persisted to Redis when available
+    # ------------------------------------------------------------------
+
+    @property  # type: ignore[override]
+    def paused(self) -> bool:  # type: ignore[override]
+        if _redis is not None:
+            return bool(self._redis_get_state().get("paused", False))
+        return self._paused
+
+    @paused.setter
+    def paused(self, value: bool) -> None:
+        self._paused: bool = value
+        if _redis is not None:
+            state = self._redis_get_state()
+            state["paused"] = value
+            self._redis_set_state(state)
+
+    # ------------------------------------------------------------------
+    # inject_message property
+    # ------------------------------------------------------------------
+
+    @property  # type: ignore[override]
+    def inject_message(self) -> str:  # type: ignore[override]
+        if _redis is not None:
+            return str(self._redis_get_state().get("inject_message", ""))
+        return self._inject_message
+
+    @inject_message.setter
+    def inject_message(self, value: str) -> None:
+        self._inject_message: str = value
+        if _redis is not None:
+            state = self._redis_get_state()
+            state["inject_message"] = value
+            self._redis_set_state(state)
+
+    # ------------------------------------------------------------------
+    # skip_current property
+    # ------------------------------------------------------------------
+
+    @property  # type: ignore[override]
+    def skip_current(self) -> bool:  # type: ignore[override]
+        if _redis is not None:
+            return bool(self._redis_get_state().get("skip_current", False))
+        return self._skip_current
+
+    @skip_current.setter
+    def skip_current(self, value: bool) -> None:
+        self._skip_current: bool = value
+        if _redis is not None:
+            state = self._redis_get_state()
+            state["skip_current"] = value
+            self._redis_set_state(state)
+
+    # ------------------------------------------------------------------
+    # abort property
+    # ------------------------------------------------------------------
+
+    @property  # type: ignore[override]
+    def abort(self) -> bool:  # type: ignore[override]
+        if _redis is not None:
+            return bool(self._redis_get_state().get("abort", False))
+        return self._abort
+
+    @abort.setter
+    def abort(self, value: bool) -> None:
+        self._abort: bool = value
+        if _redis is not None:
+            state = self._redis_get_state()
+            state["abort"] = value
+            self._redis_set_state(state)
+
+    # ------------------------------------------------------------------
+    # Serialisation helpers
+    # ------------------------------------------------------------------
 
     def to_dict(self) -> dict:
         return {
@@ -46,14 +176,37 @@ class ControlState:
         self.skip_current = False
 
 
-control = ControlState()
+# Initialise backing fields so the setters in __init__ work correctly
+# before Redis properties are fully active.
+def _make_control() -> ControlState:
+    obj = object.__new__(ControlState)
+    obj._paused = False
+    obj._inject_message = ""
+    obj._skip_current = False
+    obj._abort = False
+    obj.live_output = []
+    return obj
+
+
+control = _make_control()
 
 
 def push_output(line: str) -> None:
-    """Append a line to the live output buffer, capped at _MAX_OUTPUT entries."""
+    """Append a line to the live output buffer, capped at _MAX_OUTPUT entries.
+
+    Uses Redis list when available so all workers share the same stream.
+    Falls back to the in-memory list when Redis is unavailable.
+    """
+    if _redis is not None:
+        try:
+            _redis.rpush(_REDIS_OUTPUT_KEY, line)
+            # Trim from the left so the list never exceeds the cap
+            _redis.ltrim(_REDIS_OUTPUT_KEY, -_MAX_OUTPUT, -1)
+            return
+        except Exception:
+            pass  # fall through to in-memory
     control.live_output.append(line)
     if len(control.live_output) > _MAX_OUTPUT:
-        # Drop oldest entries to stay at cap
         del control.live_output[: len(control.live_output) - _MAX_OUTPUT]
 
 
@@ -175,7 +328,16 @@ def create_app():
         sent_count = 0
         while True:
             try:
-                snapshot = list(control.live_output)
+                # Read from Redis when available, otherwise fall back to
+                # the in-memory list that push_output() maintains.
+                if _redis is not None:
+                    try:
+                        snapshot = _redis.lrange(_REDIS_OUTPUT_KEY, 0, -1)
+                    except Exception:
+                        snapshot = list(control.live_output)
+                else:
+                    snapshot = list(control.live_output)
+
                 if len(snapshot) > sent_count:
                     for line in snapshot[sent_count:]:
                         await websocket.send_text(
