@@ -136,7 +136,7 @@ def detect_project_context(project_dir: str) -> str:
         test_info.append(f"conftest.py: {conftest}")
 
     if test_info:
-        context_parts.append(f"## Testing\n" + "\n".join(f"- {t}" for t in test_info))
+        context_parts.append("## Testing\n" + "\n".join(f"- {t}" for t in test_info))
 
     # ── Project structure ────────────────────────────────────────────────────
     top_level = sorted([
@@ -162,6 +162,49 @@ def detect_project_context(project_dir: str) -> str:
         context_parts.append(f"## Infrastructure: {', '.join(infra)}")
 
     return "\n\n".join(context_parts) if context_parts else "No project metadata detected."
+
+
+def detect_frontend_target(project_dir: str, override: str | None = None) -> str:
+    """Detect the frontend target for a project directory.
+
+    Detection priority (first match wins):
+    1. ``override`` is one of "web", "mobile", "desktop", "backend" → return it
+    2. ``tauri.conf.json`` present → "desktop"
+    3. ``Cargo.toml`` contains "tauri" → "desktop"
+    4. ``build.gradle.kts`` or ``AndroidManifest.xml`` present → "mobile"
+    5. ``package.json`` contains react/next/vue/svelte/vite → "web"
+    6. Default → "backend"
+    """
+    valid_overrides = {"web", "mobile", "desktop", "backend"}
+    if override in valid_overrides:
+        return override
+
+    root = Path(project_dir).expanduser().resolve()
+
+    if _find_file(root, "tauri.conf.json"):
+        return "desktop"
+
+    cargo = _find_file(root, "Cargo.toml")
+    if cargo:
+        try:
+            if "tauri" in cargo.read_text(encoding="utf-8"):
+                return "desktop"
+        except Exception:
+            pass
+
+    if _find_file(root, "build.gradle.kts") or _find_file(root, "AndroidManifest.xml"):
+        return "mobile"
+
+    pkg_json = _find_file(root, "package.json")
+    if pkg_json:
+        try:
+            content = pkg_json.read_text(encoding="utf-8").lower()
+            if any(kw in content for kw in ("react", "next", "vue", "svelte", "vite")):
+                return "web"
+        except Exception:
+            pass
+
+    return "backend"
 
 
 def _find_file(root: Path, name: str) -> Path | None:
