@@ -131,15 +131,17 @@ def client():
     from fastapi.testclient import TestClient
     from ai_team.web import app as app_module
 
-    # Reset state before each test
-    app_module.control.paused = False
-    app_module.control.inject_message = ""
-    app_module.control.skip_current = False
-    app_module.control.abort = False
-    app_module.control.live_output.clear()
+    def _reset():
+        app_module.control.paused = False
+        app_module.control.inject_message = ""
+        app_module.control.skip_current = False
+        app_module.control.abort = False
+        app_module.control.live_output.clear()
 
+    _reset()
     test_app = app_module.create_app()
-    return TestClient(test_app)
+    yield TestClient(test_app)
+    _reset()
 
 
 class TestHealthEndpoint:

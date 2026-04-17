@@ -69,11 +69,16 @@ def _get_embedder():
         if openai_key:
             return OpenAIEmbeddings(model=rag_model, openai_api_key=openai_key)
         if compat_key and compat_url:
-            return OpenAIEmbeddings(
+            embedder = OpenAIEmbeddings(
                 model=os.getenv("RAG_EMBEDDING_MODEL", "text-embedding-3-small"),
                 openai_api_key=compat_key,
                 base_url=compat_url,
             )
+            try:
+                embedder.embed_query("probe")
+                return embedder
+            except Exception:
+                logger.warning("OPENAI_COMPAT embedder probe failed — falling through to Ollama")
     except Exception:
         pass
 

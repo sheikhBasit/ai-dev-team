@@ -13,12 +13,16 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Send, interrupt
 
 from ai_team.agents.architect import architect_agent
+from ai_team.agents.auditor import auditor_agent
 from ai_team.agents.codebase_indexer import build_codebase_index
 from ai_team.agents.coder import coder_agent
 from ai_team.agents.debugger import debugger_agent
 from ai_team.agents.designer import designer_agent
 from ai_team.agents.docs import docs_agent
 from ai_team.agents.evaluator import evaluator_agent
+from ai_team.agents.frontend_desktop import frontend_desktop_agent
+from ai_team.agents.frontend_mobile import frontend_mobile_agent
+from ai_team.agents.frontend_web import frontend_web_agent
 from ai_team.agents.import_healer import import_healer_node
 from ai_team.agents.memory import (
     extract_lessons_from_evaluation,
@@ -26,7 +30,7 @@ from ai_team.agents.memory import (
     save_lesson,
 )
 from ai_team.agents.planner import planner_agent
-from ai_team.agents.project_detector import detect_project_context
+from ai_team.agents.project_detector import detect_frontend_target, detect_project_context
 from ai_team.agents.requirements import requirements_agent
 from ai_team.agents.reviewer import reviewer_agent
 from ai_team.agents.security import security_agent
@@ -209,13 +213,52 @@ def route_after_architecture(state: State) -> Literal["architect", "preflight"]:
     return "preflight"
 
 
+# ── Frontend routing ─────────────────────────────────────────────────────────
+
+
+def frontend_router_node(state: State) -> dict:
+    """Detect or read frontend_target and publish routing decision."""
+    from ai_team.bus import bus as _bus
+
+    _check_intervention(state)
+    target = state.get("frontend_target", "")
+    if not target:
+        target = detect_frontend_target(state.get("project_dir", ""))
+    _bus.publish("router", f"Routing to {target} coder.")
+    return {"frontend_target": target}
+
+
+def route_to_coder(state: dict) -> str:
+    """Conditional edge: returns which coder node to activate."""
+    return {
+        "web": "frontend_web",
+        "mobile": "frontend_mobile",
+        "desktop": "frontend_desktop",
+        "backend": "coder",
+    }.get(state.get("frontend_target") or "", "coder")
+
+
+# ── Intervention helper ──────────────────────────────────────────────────────
+
+
+def _check_intervention(state: State) -> None:
+    """Pause or abort the pipeline via LangGraph interrupt."""
+    from langgraph.types import interrupt as _interrupt
+
+    if state.get("abort", False):
+        raise RuntimeError("Pipeline aborted by Sultan.")
+    if state.get("paused", False):
+        _interrupt({"reason": "paused"})
+
+
 def fan_out_verification(state: State) -> list[Send]:
-    """After coding, fan out to reviewer + tester + security + debugger in parallel."""
+    """After coding, fan out to reviewer + tester + security + debugger + auditor in parallel."""
     return [
         Send("reviewer", state),
         Send("tester", state),
         Send("security", state),
         Send("debugger", state),
+        Send("auditor", state),
     ]
 
 
@@ -454,6 +497,10 @@ def build_graph():
     builder.add_node("architect", architect_agent)
     builder.add_node("preflight", preflight_node)
     builder.add_node("planner", planner_agent)
+    builder.add_node("frontend_router", frontend_router_node)
+    builder.add_node("frontend_web", frontend_web_agent)
+    builder.add_node("frontend_mobile", frontend_mobile_agent)
+    builder.add_node("frontend_desktop", frontend_desktop_agent)
     builder.add_node("coder", coder_agent)
     builder.add_node("import_healer", import_healer_node)
     builder.add_node("git_commit", git_commit_node)
@@ -461,6 +508,7 @@ def build_graph():
     builder.add_node("tester", tester_agent)
     builder.add_node("security", security_agent)
     builder.add_node("debugger", debugger_agent)
+    builder.add_node("auditor", auditor_agent)
     builder.add_node("evaluator", evaluator_agent)
     builder.add_node("learn_lessons", learn_lessons_node)
     builder.add_node("docs", docs_agent)
@@ -480,20 +528,33 @@ def build_graph():
     # Phase 3: Architecture (with human approval loop) → preflight
     builder.add_conditional_edges("architect", route_after_architecture)
 
-    # Phase 3.5: Preflight → planner → coder
+    # Phase 3.5: Preflight → planner → frontend_router → (web|mobile|desktop|coder)
     builder.add_edge("preflight", "planner")
-    builder.add_edge("planner", "coder")
+    builder.add_edge("planner", "frontend_router")
+    builder.add_conditional_edges(
+        "frontend_router",
+        route_to_coder,
+        ["frontend_web", "frontend_mobile", "frontend_desktop", "coder"],
+    )
 
-    # Phase 4: Code → import healer → git commit → parallel verification
+    # Phase 4: Coder variants → import healer → git commit → parallel verification
     builder.add_edge("coder", "import_healer")
+    builder.add_edge("frontend_web", "import_healer")
+    builder.add_edge("frontend_mobile", "import_healer")
+    builder.add_edge("frontend_desktop", "import_healer")
     builder.add_edge("import_healer", "git_commit")
-    builder.add_conditional_edges("git_commit", fan_out_verification, ["reviewer", "tester", "security", "debugger"])
+    builder.add_conditional_edges(
+        "git_commit",
+        fan_out_verification,
+        ["reviewer", "tester", "security", "debugger", "auditor"],
+    )
 
     # Phase 5: Verification agents → evaluator
     builder.add_edge("reviewer", "evaluator")
     builder.add_edge("tester", "evaluator")
     builder.add_edge("security", "evaluator")
     builder.add_edge("debugger", "evaluator")
+    builder.add_edge("auditor", "evaluator")
 
     # Phase 6: Evaluator → Command routes to "coder" or "learn_lessons"
     # (evaluator uses Command(goto=...) so no explicit edges needed here,

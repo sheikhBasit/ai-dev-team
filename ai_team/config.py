@@ -2,11 +2,34 @@
 
 from __future__ import annotations
 
+import itertools
 import os
 
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# ── OpenRouter key rotation ──────────────────────────────────────────────────
+def _openrouter_keys() -> list[str]:
+    keys = []
+    for i in range(1, 10):
+        k = os.getenv(f"OPENROUTER_KEY_{i}")
+        if k:
+            keys.append(k)
+    primary = os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_COMPAT_API_KEY")
+    if primary and primary not in keys:
+        keys.insert(0, primary)
+    return keys if keys else ([primary] if primary else [])
+
+
+_or_keys = _openrouter_keys()
+_key_cycle = itertools.cycle(_or_keys) if _or_keys else None
+
+
+def _next_openrouter_key() -> str | None:
+    if _key_cycle is None:
+        return None
+    return next(_key_cycle)
 
 # Provider → (package import path, class name, required env var, extra kwargs)
 PROVIDERS = {
@@ -167,7 +190,11 @@ def get_llm(
     # Handle API keys
     env_key = cfg.get("env_key")
     if env_key:
-        api_key = os.getenv(env_key)
+        api_key = (
+            _next_openrouter_key()
+            if provider_name == "openai_compat"
+            else os.getenv(env_key)
+        )
         if api_key:
             # DeepSeek and OpenAI-compat use openai_api_key
             if provider_name in ("deepseek", "openai_compat"):

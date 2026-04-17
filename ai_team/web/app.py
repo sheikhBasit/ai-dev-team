@@ -8,10 +8,10 @@ import logging
 from dataclasses import dataclass, field
 
 try:
-    from pydantic import BaseModel
+    from pydantic import BaseModel, Field
 
     class InjectPayload(BaseModel):
-        message: str
+        message: str = Field(..., min_length=1, max_length=2000)
 
 except ImportError:
     pass  # fastapi/pydantic not installed; create_app() will raise cleanly
@@ -135,8 +135,9 @@ def create_app():
         await websocket.accept()
         logger.info("Team WS client connected")
         sent_count = 0
-        try:
-            while True:
+        last_control: dict | None = None
+        while True:
+            try:
                 all_msgs = bus.all_messages()
                 if len(all_msgs) > sent_count:
                     for msg in all_msgs[sent_count:]:
@@ -144,15 +145,20 @@ def create_app():
                             json.dumps({"type": "team", "data": msg})
                         )
                     sent_count = len(all_msgs)
-                # Also push current control state
-                await websocket.send_text(
-                    json.dumps({"type": "control", "data": control.to_dict()})
-                )
+                # Push control state only when it changes
+                current_control = control.to_dict()
+                if current_control != last_control:
+                    await websocket.send_text(
+                        json.dumps({"type": "control", "data": current_control})
+                    )
+                    last_control = current_control
                 await asyncio.sleep(0.5)
-        except WebSocketDisconnect:
-            logger.info("Team WS client disconnected")
-        except Exception as exc:
-            logger.warning("Team WS error: %s", exc)
+            except WebSocketDisconnect:
+                logger.info("Team WS client disconnected")
+                break
+            except Exception as exc:
+                logger.warning("Team WS error: %s", exc)
+                break
 
     # ------------------------------------------------------------------
     # WebSocket — live output stream
@@ -163,20 +169,22 @@ def create_app():
         await websocket.accept()
         logger.info("Output WS client connected")
         sent_count = 0
-        try:
-            while True:
-                current = control.live_output
-                if len(current) > sent_count:
-                    for line in current[sent_count:]:
+        while True:
+            try:
+                snapshot = list(control.live_output)
+                if len(snapshot) > sent_count:
+                    for line in snapshot[sent_count:]:
                         await websocket.send_text(
                             json.dumps({"type": "output", "data": line})
                         )
-                    sent_count = len(current)
+                    sent_count = len(snapshot)
                 await asyncio.sleep(0.3)
-        except WebSocketDisconnect:
-            logger.info("Output WS client disconnected")
-        except Exception as exc:
-            logger.warning("Output WS error: %s", exc)
+            except WebSocketDisconnect:
+                logger.info("Output WS client disconnected")
+                break
+            except Exception as exc:
+                logger.warning("Output WS error: %s", exc)
+                break
 
     # ------------------------------------------------------------------
     # Dashboard HTML

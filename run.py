@@ -98,6 +98,10 @@ def handle_interrupt(interrupt_value: dict) -> dict:
     console.print(f"[bold yellow]{question}[/bold yellow]")
     console.print("[dim]Options: approve / reject / or type your feedback directly[/dim]")
 
+    if not sys.stdin.isatty():
+        console.print("[dim]No TTY detected — auto-approving.[/dim]")
+        return {"decision": "approved"}
+
     response = Prompt.ask("Your decision").strip().lower()
 
     if response in ("approve", "approved", "yes", "y", "ship", "lgtm", "ok"):
@@ -117,6 +121,7 @@ def run(
     thread_id: str | None = None,
     start_phase: str | None = None,
     verbose: bool = False,
+    frontend_target: str | None = None,
 ):
     setup_logging(verbose)
 
@@ -144,12 +149,14 @@ def run(
     graph = build_graph()
     config = {"configurable": {"thread_id": tid}}
 
+    target = frontend_target or os.getenv("FRONTEND_TARGET", "")
     initial_state = {
         "task": task,
         "project_dir": resolved_project,
         "phase": start_phase or "requirements",
         "iteration": 0,
         "max_iterations": get_max_iterations(),
+        **({"frontend_target": target} if target else {}),
     }
 
     graph_input = initial_state
@@ -251,6 +258,7 @@ Examples:
   python run.py --project ~/my-project --task "Fix auth bug"
   python run.py --thread-id abc123  # resume session
   python run.py --task "Add caching" --start-phase code
+  python run.py --task "Add system tray" --target desktop
   python run.py --task "Refactor auth" -v  # verbose logging
         """,
     )
@@ -262,6 +270,8 @@ Examples:
     ], help="Skip to a specific phase")
     parser.add_argument("--model", "-m", type=str, help="LLM model to use (overrides .env LLM_MODEL)")
     parser.add_argument("--provider", type=str, help="LLM provider to use (overrides .env LLM_PROVIDER)")
+    parser.add_argument("--target", type=str, choices=["web", "mobile", "desktop", "backend"],
+                        help="Frontend target (overrides auto-detection and FRONTEND_TARGET env var)")
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose logging to console")
 
     args = parser.parse_args()
@@ -287,6 +297,7 @@ Examples:
             thread_id=args.thread_id,
             start_phase=args.start_phase,
             verbose=args.verbose,
+            frontend_target=args.target,
         )
     except KeyboardInterrupt:
         console.print("\n[yellow]Interrupted. Session saved — resume with --thread-id[/yellow]")

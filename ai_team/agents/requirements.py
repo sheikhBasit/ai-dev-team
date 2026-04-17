@@ -10,10 +10,9 @@ from ai_team.config import get_llm_for_agent
 from langchain_core.messages import HumanMessage, SystemMessage
 
 
-SYSTEM_PROMPT = """You are a Senior Product Manager. Your job is to take a user's feature request
-and produce a clear, actionable Product Requirements Document (PRD).
+SYSTEM_PROMPT = """You are a Senior Product Manager. Write a concise PRD for the given feature request.
 
-Your PRD must include:
+Your PRD must have exactly these 6 sections and nothing else:
 1. **Objective** — What are we building and why?
 2. **User Stories** — As a [user], I want [feature], so that [benefit]
 3. **Acceptance Criteria** — Specific, testable conditions for "done"
@@ -21,13 +20,12 @@ Your PRD must include:
 5. **Edge Cases** — What could go wrong? What weird inputs might happen?
 6. **Dependencies** — What existing systems does this touch?
 
-Be specific. Developers will code directly from this spec.
-Ask clarifying questions if the request is ambiguous — do NOT assume."""
+Stop writing after section 6. Do not add any other sections. Keep the total PRD under 500 words."""
 
 
 def requirements_agent(state: dict) -> dict:
     """Gather requirements and produce a PRD spec."""
-    llm = get_llm_for_agent("requirements")
+    llm = get_llm_for_agent("requirements", max_tokens=1500)
     task = state["task"]
     project_dir = state.get("project_dir", "")
     project_context = state.get("project_context", "")

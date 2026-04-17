@@ -17,7 +17,7 @@ def set_rag_project(project_dir: str) -> None:
 
 
 @tool
-def search_codebase(query: str, k: int = 8, file_glob: str = "") -> str:
+def search_codebase(query: str = "", k: int = 8, file_glob: str = "", pattern: str = "") -> str:
     """Semantically + keyword search the codebase for relevant code.
 
     Combines vector similarity with BM25 keyword search (RRF fusion) so it finds
@@ -27,7 +27,12 @@ def search_codebase(query: str, k: int = 8, file_glob: str = "") -> str:
         query: Natural language or identifier to search for.
         k: Number of results (default 8, max 20).
         file_glob: Optional glob to restrict search, e.g. '**/routers/*.py' or 'backend/**'.
+        pattern: Alias for query (accepted for compatibility).
     """
+    query = query or pattern
+    if not query:
+        return "ERROR: provide a query to search for."
+
     if not _project_dir:
         return "ERROR: RAG not initialized. No project directory set."
 

@@ -103,7 +103,13 @@ def invoke_llm_with_retry(
     max_retries: int = 3,
     base_delay: float = 2.0,
 ) -> AIMessage:
-    """Invoke LLM with exponential backoff retry on transient errors."""
+    """Invoke LLM with exponential backoff retry on transient errors.
+
+    On 429 rate-limit for openai_compat (OpenRouter), rotates to the next key.
+    """
+    import os
+    from ai_team.config import _next_openrouter_key
+
     for attempt in range(max_retries):
         try:
             response = llm.invoke(messages)
@@ -111,11 +117,24 @@ def invoke_llm_with_retry(
             return response
         except Exception as e:
             error_str = str(e).lower()
-            is_transient = any(
+            is_rate_limit = "429" in error_str or "rate_limit" in error_str or "rate limit" in error_str
+            is_transient = is_rate_limit or any(
                 keyword in error_str
-                for keyword in ["rate_limit", "rate limit", "429", "503", "timeout", "overloaded"]
+                for keyword in ["503", "timeout", "overloaded"]
             )
             if is_transient and attempt < max_retries - 1:
+                # Rotate OpenRouter key on 429 before retrying
+                if is_rate_limit and os.getenv("LLM_PROVIDER") == "openai_compat":
+                    next_key = _next_openrouter_key()
+                    if next_key:
+                        logger.warning(
+                            "OpenRouter 429 — rotating to next key (attempt %d/%d)",
+                            attempt + 1, max_retries,
+                        )
+                        try:
+                            llm = llm.copy(update={"openai_api_key": next_key})
+                        except Exception:
+                            pass  # copy not available on all LLM classes
                 delay = base_delay * (2 ** attempt)
                 logger.warning(
                     "LLM call failed (attempt %d/%d): %s. Retrying in %.1fs...",
