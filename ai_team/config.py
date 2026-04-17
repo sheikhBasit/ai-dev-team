@@ -202,8 +202,12 @@ AGENT_ROLE_DEFAULTS: dict[str, str] = {
     "reviewer":     os.getenv("AGENT_MODEL_REVIEWER",     ""),
     "tester":       os.getenv("AGENT_MODEL_TESTER",       ""),
     "security":     os.getenv("AGENT_MODEL_SECURITY",     ""),
+    "auditor":      os.getenv("AGENT_MODEL_AUDITOR",      ""),
     "planner":      os.getenv("AGENT_MODEL_PLANNER",      ""),
-    "debugger":     os.getenv("AGENT_MODEL_DEBUGGER",     ""),
+    "debugger":      os.getenv("AGENT_MODEL_DEBUGGER",      ""),
+    "frontend_web":    os.getenv("AGENT_MODEL_FRONTEND_WEB",    ""),
+    "frontend_mobile":   os.getenv("AGENT_MODEL_FRONTEND_MOBILE",   ""),
+    "frontend_desktop":  os.getenv("AGENT_MODEL_FRONTEND_DESKTOP",  ""),
 }
 
 
