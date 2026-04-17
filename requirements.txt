@@ -43,3 +43,6 @@ langchain-openai>=0.3.0
 
 # Ollama (local, FREE)
 # langchain-ollama>=0.2.0
+
+# Observability (optional)
+# langfuse>=2.0.0

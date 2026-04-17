@@ -102,10 +102,13 @@ def invoke_llm_with_retry(
     messages: list[BaseMessage],
     max_retries: int = 3,
     base_delay: float = 2.0,
+    agent_name: str = "unknown",
+    trace: Any = None,
 ) -> AIMessage:
     """Invoke LLM with exponential backoff retry on transient errors.
 
     On 429 rate-limit for openai_compat (OpenRouter), rotates to the next key.
+    Logs each call to Langfuse if a trace is provided.
     """
     import os
     from ai_team.config import _next_openrouter_key
@@ -114,6 +117,22 @@ def invoke_llm_with_retry(
         try:
             response = llm.invoke(messages)
             _token_usage.add(response)
+            # Log to Langfuse if tracing is active
+            if trace is not None:
+                try:
+                    from ai_team.observability import log_llm_call
+                    usage = getattr(response, "usage_metadata", {}) or {}
+                    log_llm_call(
+                        trace=trace,
+                        agent_name=agent_name,
+                        model=getattr(llm, "model_name", getattr(llm, "model", "unknown")),
+                        input_messages=messages,
+                        output=response.content,
+                        input_tokens=usage.get("input_tokens", 0),
+                        output_tokens=usage.get("output_tokens", 0),
+                    )
+                except Exception:
+                    pass  # observability must never break the pipeline
             return response
         except Exception as e:
             error_str = str(e).lower()
