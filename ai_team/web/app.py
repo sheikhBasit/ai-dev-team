@@ -69,8 +69,10 @@ def create_app():
         raise ImportError("Install fastapi and uvicorn: pip install fastapi uvicorn")
 
     from ai_team.bus import bus
+    from ai_team.web.a2a_routes import register_a2a_routes
 
     app = FastAPI(title="AI Dev Team Dashboard")
+    register_a2a_routes(app)
 
     # ------------------------------------------------------------------
     # REST — control endpoints
