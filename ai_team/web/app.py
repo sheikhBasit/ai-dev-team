@@ -70,9 +70,11 @@ def create_app():
 
     from ai_team.bus import bus
     from ai_team.web.a2a_routes import register_a2a_routes
+    from ai_team.web.agui_routes import register_agui_routes
 
     app = FastAPI(title="AI Dev Team Dashboard")
     register_a2a_routes(app)
+    register_agui_routes(app)
 
     # ------------------------------------------------------------------
     # REST — control endpoints
