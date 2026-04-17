@@ -89,8 +89,13 @@ Project Directory: {project_dir}
 
     bus.publish("frontend_web", "Frontend web code complete.")
 
+    total_tokens = state.get("total_tokens", 0)
+    if hasattr(response, "usage_metadata") and isinstance(response.usage_metadata, dict):
+        usage = response.usage_metadata
+        total_tokens += usage.get("input_tokens", 0) + usage.get("output_tokens", 0)
+
     return {
         "code_changes": changed_files,
-        "total_tokens": state.get("total_tokens", 0),
+        "total_tokens": total_tokens,
         "inject_message": "",
     }
