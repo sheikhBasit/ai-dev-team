@@ -1,11 +1,11 @@
-"""Langfuse observability — wraps LLM calls with traces, spans, and cost tracking.
+"""Langfuse v4 observability — traces every agent LLM call with cost tracking.
 
 Set in .env:
   LANGFUSE_PUBLIC_KEY=pk-lf-...
   LANGFUSE_SECRET_KEY=sk-lf-...
-  LANGFUSE_HOST=https://cloud.langfuse.com   # or self-hosted URL
+  LANGFUSE_HOST=https://cloud.langfuse.com
 
-If keys are missing, all functions are no-ops so the pipeline still runs.
+If keys are missing, all functions are no-ops — pipeline always runs.
 """
 
 from __future__ import annotations
@@ -27,12 +27,17 @@ def _get_client():
         return _client
     pub = os.getenv("LANGFUSE_PUBLIC_KEY", "")
     sec = os.getenv("LANGFUSE_SECRET_KEY", "")
-    host = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+    host = os.getenv("LANGFUSE_HOST", os.getenv("LANGFUSE_BASE_URL", "https://cloud.langfuse.com"))
     if not pub or not sec:
         return None
     try:
         from langfuse import Langfuse
         _client = Langfuse(public_key=pub, secret_key=sec, host=host)
+        ok = _client.auth_check()
+        if not ok:
+            logger.warning("Langfuse auth_check failed — observability disabled")
+            _client = None
+            return None
         _enabled = True
         logger.info("Langfuse observability enabled (host=%s)", host)
     except Exception as e:
@@ -41,11 +46,12 @@ def _get_client():
     return _client
 
 
-class _NoopSpan:
+class _Noop:
+    """No-op span/trace returned when Langfuse is disabled."""
+    def __enter__(self): return self
+    def __exit__(self, *_): pass
     def update(self, **_): pass
     def end(self, **_): pass
-    def generation(self, **_): return self
-    def score(self, **_): pass
 
 
 @contextmanager
@@ -55,24 +61,22 @@ def trace_agent(
     session_id: str = "",
     metadata: dict | None = None,
 ) -> Generator[Any, None, None]:
-    """Context manager that wraps an agent run in a Langfuse trace."""
+    """Context manager wrapping an agent run in a Langfuse trace (v4 API)."""
     client = _get_client()
     if client is None:
-        yield _NoopSpan()
+        yield _Noop()
         return
+
     try:
-        tr = client.trace(
+        with client.start_as_current_observation(
             name=agent_name,
             input=task,
-            session_id=session_id or None,
-            metadata=metadata or {},
-            tags=[agent_name, "ai-dev-team"],
-        )
-        yield tr
-        tr.update(output=task)
+            metadata={**(metadata or {}), "session_id": session_id},
+        ) as span:
+            yield span
     except Exception as e:
         logger.warning("Langfuse trace error: %s", e)
-        yield _NoopSpan()
+        yield _Noop()
     finally:
         try:
             client.flush()
@@ -81,7 +85,7 @@ def trace_agent(
 
 
 def log_llm_call(
-    trace,
+    trace: Any,
     agent_name: str,
     model: str,
     input_messages: list,
@@ -89,42 +93,42 @@ def log_llm_call(
     input_tokens: int = 0,
     output_tokens: int = 0,
 ) -> None:
-    """Log a single LLM call as a generation span inside an existing trace."""
-    if not _enabled or trace is None or isinstance(trace, _NoopSpan):
+    """Log a single LLM call as a generation inside the current trace context."""
+    client = _get_client()
+    if not _enabled or client is None:
         return
     try:
-        trace.generation(
-            name=f"{agent_name}-llm",
-            model=model,
-            input=[{"role": getattr(m, 'type', 'user'), "content": getattr(m, 'content', str(m))} for m in input_messages],
-            output=output,
-            usage={
-                "input": input_tokens,
-                "output": output_tokens,
-                "total": input_tokens + output_tokens,
+        client.create_event(
+            name=f"{agent_name}-generation",
+            input=[{
+                "role": getattr(m, "type", "user"),
+                "content": getattr(m, "content", str(m))[:2000],
+            } for m in input_messages],
+            output=output[:2000],
+            metadata={
+                "model": model,
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "total_tokens": input_tokens + output_tokens,
             },
         )
     except Exception as e:
-        logger.warning("Langfuse generation log error: %s", e)
+        logger.warning("Langfuse log_llm_call error: %s", e)
 
 
-def score_response(
-    trace,
-    name: str,
-    value: float,
-    comment: str = "",
-) -> None:
-    """Add a numeric score to a trace (0.0–1.0). Use for hallucination rate, quality etc."""
-    if not _enabled or trace is None or isinstance(trace, _NoopSpan):
+def score_pipeline(name: str, value: float, comment: str = "") -> None:
+    """Score the current trace (0.0–1.0). Call after evaluator runs."""
+    client = _get_client()
+    if not _enabled or client is None:
         return
     try:
-        trace.score(name=name, value=value, comment=comment)
+        client.score_current_trace(name=name, value=value, comment=comment)
     except Exception as e:
         logger.warning("Langfuse score error: %s", e)
 
 
 def flush() -> None:
-    """Flush all pending events to Langfuse. Call at end of pipeline."""
+    """Flush all pending events. Call at end of pipeline run."""
     client = _get_client()
     if client:
         try:
