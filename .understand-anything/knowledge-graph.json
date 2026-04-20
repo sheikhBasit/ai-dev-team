@@ -1,0 +1,555 @@
+{
+  "version": "1.0.0",
+  "generatedAt": "2026-04-20T00:00:00.000Z",
+  "projectRoot": "/home/basitdev/Me/ai-dev-team",
+  "nodes": [
+    {
+      "id": "file:run.py",
+      "type": "file",
+      "name": "run.py",
+      "filePath": "run.py",
+      "layer": "api",
+      "summary": "CLI entry point that parses sub-commands (think, fix, chat, bot, web, resume) and launches the appropriate pipeline mode.",
+      "language": "python",
+      "concepts": ["cli", "argparse", "entry-point"]
+    },
+    {
+      "id": "file:bot.py",
+      "type": "file",
+      "name": "bot.py",
+      "filePath": "bot.py",
+      "layer": "api",
+      "summary": "Telegram bot interface that lets users send tasks from a phone and receive approval-request messages as replies.",
+      "language": "python",
+      "concepts": ["telegram-bot", "async", "event-loop"]
+    },
+    {
+      "id": "file:chat.py",
+      "type": "file",
+      "name": "chat.py",
+      "filePath": "chat.py",
+      "layer": "api",
+      "summary": "Persistent CLI chat mode that maintains conversation history on disk and supports /build, /fix, /status commands.",
+      "language": "python",
+      "concepts": ["repl", "history", "chat"]
+    },
+    {
+      "id": "file:ai_team/graph.py",
+      "type": "file",
+      "name": "graph.py",
+      "filePath": "ai_team/graph.py",
+      "layer": "service",
+      "summary": "Main LangGraph orchestrator that wires all 20+ agent nodes into the pipeline DAG, handles routing, fan-out verification, and session checkpointing.",
+      "language": "python",
+      "concepts": ["langgraph", "dag", "state-machine", "checkpointing"]
+    },
+    {
+      "id": "file:ai_team/state.py",
+      "type": "file",
+      "name": "state.py",
+      "filePath": "ai_team/state.py",
+      "layer": "data",
+      "summary": "LangGraph TypedDict state schema defining all shared fields (phase, specs, findings, messages) with custom reducers for message capping and work-item replacement.",
+      "language": "python",
+      "concepts": ["typeddict", "state-management", "reducers", "langgraph"]
+    },
+    {
+      "id": "file:ai_team/config.py",
+      "type": "file",
+      "name": "config.py",
+      "filePath": "ai_team/config.py",
+      "layer": "utility",
+      "summary": "Multi-provider LLM configuration supporting 12 providers (Anthropic, OpenAI, Groq, Ollama, DeepSeek, etc.) with auto-detection from model name and per-agent model overrides.",
+      "language": "python",
+      "concepts": ["multi-provider", "dynamic-import", "key-rotation", "configuration"]
+    },
+    {
+      "id": "file:ai_team/bus.py",
+      "type": "file",
+      "name": "bus.py",
+      "filePath": "ai_team/bus.py",
+      "layer": "service",
+      "summary": "Thread-safe agent-to-agent pub/sub message bus backed by SQLite, supporting publish, consume with read cursors, thread tracking, and in-memory reset.",
+      "language": "python",
+      "concepts": ["pub-sub", "thread-safety", "sqlite", "message-bus"]
+    },
+    {
+      "id": "file:ai_team/observability.py",
+      "type": "file",
+      "name": "observability.py",
+      "filePath": "ai_team/observability.py",
+      "layer": "utility",
+      "summary": "Langfuse observability integration for logging LLM calls, token usage, and agent traces.",
+      "language": "python",
+      "concepts": ["observability", "tracing", "langfuse"]
+    },
+    {
+      "id": "file:ai_team/otel.py",
+      "type": "file",
+      "name": "otel.py",
+      "filePath": "ai_team/otel.py",
+      "layer": "utility",
+      "summary": "OpenTelemetry setup for distributed tracing across agent pipeline runs.",
+      "language": "python",
+      "concepts": ["opentelemetry", "tracing", "instrumentation"]
+    },
+    {
+      "id": "file:ai_team/agents/react_loop.py",
+      "type": "file",
+      "name": "react_loop.py",
+      "filePath": "ai_team/agents/react_loop.py",
+      "layer": "service",
+      "summary": "Shared ReAct tool-use loop with exponential-backoff retry, token tracking, cost estimation, OpenRouter key rotation, and progress callbacks used by all coding agents.",
+      "language": "python",
+      "concepts": ["react-pattern", "tool-use", "retry", "token-tracking", "cost-estimation"]
+    },
+    {
+      "id": "file:ai_team/agents/coder.py",
+      "type": "file",
+      "name": "coder.py",
+      "filePath": "ai_team/agents/coder.py",
+      "layer": "service",
+      "summary": "Senior Developer agent that writes production code using the ReAct loop, supports fix-iteration mode focusing only on reported issues, and reports all changed files.",
+      "language": "python",
+      "concepts": ["code-generation", "react-agent", "fix-iteration"]
+    },
+    {
+      "id": "file:ai_team/agents/planner.py",
+      "type": "file",
+      "name": "planner.py",
+      "filePath": "ai_team/agents/planner.py",
+      "layer": "service",
+      "summary": "Planner agent that decomposes architecture specs into prioritised WorkItem tasks for the coder to execute incrementally.",
+      "language": "python",
+      "concepts": ["task-planning", "decomposition", "work-items"]
+    },
+    {
+      "id": "file:ai_team/agents/architect.py",
+      "type": "file",
+      "name": "architect.py",
+      "filePath": "ai_team/agents/architect.py",
+      "layer": "service",
+      "summary": "Solution Architect agent that reads existing code via file tools and produces a system design spec with human approval gate.",
+      "language": "python",
+      "concepts": ["system-design", "human-in-the-loop", "architecture"]
+    },
+    {
+      "id": "file:ai_team/agents/reviewer.py",
+      "type": "file",
+      "name": "reviewer.py",
+      "filePath": "ai_team/agents/reviewer.py",
+      "layer": "service",
+      "summary": "Tech Lead reviewer agent that performs code review and emits structured AgentFinding objects with severity levels.",
+      "language": "python",
+      "concepts": ["code-review", "structured-output", "findings"]
+    },
+    {
+      "id": "file:ai_team/agents/tester.py",
+      "type": "file",
+      "name": "tester.py",
+      "filePath": "ai_team/agents/tester.py",
+      "layer": "service",
+      "summary": "QA Engineer agent that writes and runs tests, parses test output, and categorizes failure types for targeted coder fixes.",
+      "language": "python",
+      "concepts": ["test-automation", "error-categorization", "pytest"]
+    },
+    {
+      "id": "file:ai_team/agents/security.py",
+      "type": "file",
+      "name": "security.py",
+      "filePath": "ai_team/agents/security.py",
+      "layer": "service",
+      "summary": "Security auditor agent that performs OWASP-aligned static analysis and emits critical/warn findings for the coder to fix.",
+      "language": "python",
+      "concepts": ["security-audit", "owasp", "static-analysis"]
+    },
+    {
+      "id": "file:ai_team/agents/debugger.py",
+      "type": "file",
+      "name": "debugger.py",
+      "filePath": "ai_team/agents/debugger.py",
+      "layer": "service",
+      "summary": "Debugger agent that inspects runtime errors, traces exceptions, and produces a structured debug report.",
+      "language": "python",
+      "concepts": ["debugging", "runtime-analysis", "error-tracing"]
+    },
+    {
+      "id": "file:ai_team/agents/auditor.py",
+      "type": "file",
+      "name": "auditor.py",
+      "filePath": "ai_team/agents/auditor.py",
+      "layer": "service",
+      "summary": "Code auditor agent that checks for code quality, complexity, and architectural consistency issues.",
+      "language": "python",
+      "concepts": ["code-audit", "quality-metrics", "architecture-compliance"]
+    },
+    {
+      "id": "file:ai_team/agents/evaluator.py",
+      "type": "file",
+      "name": "evaluator.py",
+      "filePath": "ai_team/agents/evaluator.py",
+      "layer": "service",
+      "summary": "Engineering Manager agent that aggregates all verification findings and decides whether to ship (goto learn_lessons) or retry (goto coder) up to max_iterations.",
+      "language": "python",
+      "concepts": ["evaluation", "routing", "ship-decision", "langgraph-command"]
+    },
+    {
+      "id": "file:ai_team/agents/requirements.py",
+      "type": "file",
+      "name": "requirements.py",
+      "filePath": "ai_team/agents/requirements.py",
+      "layer": "service",
+      "summary": "Product Manager agent that writes a PRD from user task description with human approval gate at the requirements phase.",
+      "language": "python",
+      "concepts": ["prd", "requirements-gathering", "human-in-the-loop"]
+    },
+    {
+      "id": "file:ai_team/agents/designer.py",
+      "type": "file",
+      "name": "designer.py",
+      "filePath": "ai_team/agents/designer.py",
+      "layer": "service",
+      "summary": "UI/UX agent that generates component code and design specifications from requirements with human approval gate.",
+      "language": "python",
+      "concepts": ["ui-design", "component-generation", "human-in-the-loop"]
+    },
+    {
+      "id": "file:ai_team/agents/docs.py",
+      "type": "file",
+      "name": "docs.py",
+      "filePath": "ai_team/agents/docs.py",
+      "layer": "service",
+      "summary": "Documentation agent that generates or updates README and inline docs after code passes evaluation.",
+      "language": "python",
+      "concepts": ["documentation", "readme-generation"]
+    },
+    {
+      "id": "file:ai_team/agents/memory.py",
+      "type": "file",
+      "name": "memory.py",
+      "filePath": "ai_team/agents/memory.py",
+      "layer": "data",
+      "summary": "Persistent lesson storage that saves and loads learned patterns per project to ~/.ai-dev-team/memory/ for cross-session memory.",
+      "language": "python",
+      "concepts": ["persistence", "lessons-learned", "cross-session-memory"]
+    },
+    {
+      "id": "file:ai_team/agents/project_detector.py",
+      "type": "file",
+      "name": "project_detector.py",
+      "filePath": "ai_team/agents/project_detector.py",
+      "layer": "utility",
+      "summary": "Auto-detects project language, framework, code style, and frontend target by reading CLAUDE.md, pyproject.toml, package.json and inspecting the file tree.",
+      "language": "python",
+      "concepts": ["project-detection", "framework-detection", "auto-configuration"]
+    },
+    {
+      "id": "file:ai_team/agents/codebase_indexer.py",
+      "type": "file",
+      "name": "codebase_indexer.py",
+      "filePath": "ai_team/agents/codebase_indexer.py",
+      "layer": "utility",
+      "summary": "Lightweight codebase indexer that scans source files to build a symbol map of classes, functions, API endpoints, and DB models.",
+      "language": "python",
+      "concepts": ["ast-parsing", "symbol-map", "indexing"]
+    },
+    {
+      "id": "file:ai_team/agents/import_healer.py",
+      "type": "file",
+      "name": "import_healer.py",
+      "filePath": "ai_team/agents/import_healer.py",
+      "layer": "service",
+      "summary": "Post-coding node that detects and fixes broken import statements left by the coder agents before committing.",
+      "language": "python",
+      "concepts": ["import-resolution", "post-processing", "static-analysis"]
+    },
+    {
+      "id": "file:ai_team/agents/frontend_web.py",
+      "type": "file",
+      "name": "frontend_web.py",
+      "filePath": "ai_team/agents/frontend_web.py",
+      "layer": "service",
+      "summary": "Web frontend coder specialised for React/Vue/HTML+CSS projects with web-specific conventions.",
+      "language": "python",
+      "concepts": ["frontend", "react", "web-development"]
+    },
+    {
+      "id": "file:ai_team/agents/frontend_mobile.py",
+      "type": "file",
+      "name": "frontend_mobile.py",
+      "filePath": "ai_team/agents/frontend_mobile.py",
+      "layer": "service",
+      "summary": "Mobile frontend coder specialised for React Native / Flutter projects.",
+      "language": "python",
+      "concepts": ["mobile", "react-native", "flutter"]
+    },
+    {
+      "id": "file:ai_team/agents/frontend_desktop.py",
+      "type": "file",
+      "name": "frontend_desktop.py",
+      "filePath": "ai_team/agents/frontend_desktop.py",
+      "layer": "service",
+      "summary": "Desktop frontend coder specialised for Electron / Tauri / PyQt projects.",
+      "language": "python",
+      "concepts": ["desktop", "electron", "tauri"]
+    },
+    {
+      "id": "file:ai_team/tools/shell_tools.py",
+      "type": "file",
+      "name": "shell_tools.py",
+      "filePath": "ai_team/tools/shell_tools.py",
+      "layer": "utility",
+      "summary": "Sandboxed file and shell tools with command allowlist (no rm/sudo/kill), path restriction to project directory, and credential scrubbing.",
+      "language": "python",
+      "concepts": ["sandboxing", "security", "tool-use", "allowlist"]
+    },
+    {
+      "id": "file:ai_team/tools/rag_tools.py",
+      "type": "file",
+      "name": "rag_tools.py",
+      "filePath": "ai_team/tools/rag_tools.py",
+      "layer": "utility",
+      "summary": "LangChain tool wrapping the RAG store search, exposes search_codebase to agents for semantic code lookup.",
+      "language": "python",
+      "concepts": ["rag", "semantic-search", "tool-use"]
+    },
+    {
+      "id": "file:ai_team/rag/store.py",
+      "type": "file",
+      "name": "store.py",
+      "filePath": "ai_team/rag/store.py",
+      "layer": "data",
+      "summary": "RAG vector store that builds diff-aware embeddings per project, supports incremental updates, and provides hybrid semantic+BM25 search with RRF fusion.",
+      "language": "python",
+      "concepts": ["embeddings", "vector-store", "numpy", "diff-aware", "hybrid-search"]
+    },
+    {
+      "id": "file:ai_team/rag/chunker.py",
+      "type": "file",
+      "name": "chunker.py",
+      "filePath": "ai_team/rag/chunker.py",
+      "layer": "utility",
+      "summary": "Splits source files into overlapping text chunks suitable for embedding, respecting file type boundaries.",
+      "language": "python",
+      "concepts": ["chunking", "text-splitting", "rag"]
+    },
+    {
+      "id": "file:ai_team/rag/hybrid_search.py",
+      "type": "file",
+      "name": "hybrid_search.py",
+      "filePath": "ai_team/rag/hybrid_search.py",
+      "layer": "utility",
+      "summary": "Combines cosine-similarity semantic search with BM25 keyword ranking using Reciprocal Rank Fusion for better code search results.",
+      "language": "python",
+      "concepts": ["hybrid-search", "bm25", "cosine-similarity", "rrf"]
+    },
+    {
+      "id": "file:ai_team/rag/lessons_rag.py",
+      "type": "file",
+      "name": "lessons_rag.py",
+      "filePath": "ai_team/rag/lessons_rag.py",
+      "layer": "service",
+      "summary": "Indexes and retrieves previously learned lessons via semantic search so only relevant past lessons are injected into the current pipeline context.",
+      "language": "python",
+      "concepts": ["lessons", "semantic-retrieval", "context-injection"]
+    },
+    {
+      "id": "file:ai_team/web/app.py",
+      "type": "file",
+      "name": "app.py",
+      "filePath": "ai_team/web/app.py",
+      "layer": "api",
+      "summary": "FastAPI live dashboard with WebSocket streams for team messages and live output, REST endpoints for pause/resume/inject/abort pipeline controls, and optional Redis state sharing.",
+      "language": "python",
+      "concepts": ["fastapi", "websocket", "dashboard", "redis", "live-streaming"]
+    },
+    {
+      "id": "file:ai_team/web/a2a_routes.py",
+      "type": "file",
+      "name": "a2a_routes.py",
+      "filePath": "ai_team/web/a2a_routes.py",
+      "layer": "api",
+      "summary": "Agent-to-Agent (A2A) protocol routes exposing agent cards and task endpoints for inter-agent HTTP communication.",
+      "language": "python",
+      "concepts": ["a2a-protocol", "agent-cards", "fastapi"]
+    },
+    {
+      "id": "file:ai_team/web/agui_routes.py",
+      "type": "file",
+      "name": "agui_routes.py",
+      "filePath": "ai_team/web/agui_routes.py",
+      "layer": "api",
+      "summary": "AG-UI protocol routes for streaming agent events over Server-Sent Events or WebSocket to frontend UIs.",
+      "language": "python",
+      "concepts": ["ag-ui", "sse", "event-streaming", "fastapi"]
+    },
+    {
+      "id": "file:ai_team/web/a2a_cards.py",
+      "type": "file",
+      "name": "a2a_cards.py",
+      "filePath": "ai_team/web/a2a_cards.py",
+      "layer": "data",
+      "summary": "Defines A2A agent card data structures that describe each agent's capabilities, inputs, and outputs.",
+      "language": "python",
+      "concepts": ["a2a", "agent-cards", "capability-declaration"]
+    },
+    {
+      "id": "function:build_graph",
+      "type": "function",
+      "name": "build_graph",
+      "filePath": "ai_team/graph.py",
+      "layer": "service",
+      "summary": "Constructs and compiles the full LangGraph StateGraph with all 20+ nodes, conditional edges, fan-out verification, and SQLite or in-memory checkpointer.",
+      "language": "python",
+      "concepts": ["langgraph", "state-machine", "compilation", "checkpointing"]
+    },
+    {
+      "id": "function:init_node",
+      "type": "function",
+      "name": "init_node",
+      "filePath": "ai_team/graph.py",
+      "layer": "service",
+      "summary": "Pipeline initialisation node: detects project context, builds codebase index, initialises RAG, loads relevant lessons, and creates a git branch for the task.",
+      "language": "python",
+      "concepts": ["initialization", "project-detection", "rag", "git"]
+    },
+    {
+      "id": "function:fan_out_verification",
+      "type": "function",
+      "name": "fan_out_verification",
+      "filePath": "ai_team/graph.py",
+      "layer": "service",
+      "summary": "LangGraph Send fan-out that spawns reviewer, tester, security, debugger, and auditor agents in parallel after coding.",
+      "language": "python",
+      "concepts": ["parallel-execution", "fan-out", "langgraph-send"]
+    },
+    {
+      "id": "function:react_loop",
+      "type": "function",
+      "name": "react_loop",
+      "filePath": "ai_team/agents/react_loop.py",
+      "layer": "service",
+      "summary": "Core ReAct execution loop: iterates LLM inference and tool calls up to max_iterations, tracking changed files and token usage throughout.",
+      "language": "python",
+      "concepts": ["react-pattern", "tool-use", "iterative-execution"]
+    },
+    {
+      "id": "function:get_llm",
+      "type": "function",
+      "name": "get_llm",
+      "filePath": "ai_team/config.py",
+      "layer": "utility",
+      "summary": "Factory that dynamically imports the correct LangChain LLM class for the configured provider and returns a ready-to-use instance.",
+      "language": "python",
+      "concepts": ["factory-pattern", "dynamic-import", "multi-provider"]
+    },
+    {
+      "id": "class:AgentBus",
+      "type": "class",
+      "name": "AgentBus",
+      "filePath": "ai_team/bus.py",
+      "layer": "service",
+      "summary": "Thread-safe pub/sub bus with SQLite persistence: supports publish, consume-with-cursor, thread loading for session restore, and reset for pipeline start.",
+      "language": "python",
+      "concepts": ["pub-sub", "singleton", "thread-safety", "sqlite"]
+    },
+    {
+      "id": "class:State",
+      "type": "class",
+      "name": "State",
+      "filePath": "ai_team/state.py",
+      "layer": "data",
+      "summary": "LangGraph TypedDict defining all shared pipeline state: task, phase, specs, findings, work items, control flags, token counts, and conversation messages.",
+      "language": "python",
+      "concepts": ["typeddict", "state-schema", "langgraph"]
+    },
+    {
+      "id": "class:TokenUsage",
+      "type": "class",
+      "name": "TokenUsage",
+      "filePath": "ai_team/agents/react_loop.py",
+      "layer": "utility",
+      "summary": "Dataclass tracking cumulative input/output token counts and estimated cost across all LLM calls in a session.",
+      "language": "python",
+      "concepts": ["cost-tracking", "token-counting", "dataclass"]
+    },
+    {
+      "id": "class:ControlState",
+      "type": "class",
+      "name": "ControlState",
+      "filePath": "ai_team/web/app.py",
+      "layer": "service",
+      "summary": "Dashboard control state (paused, inject_message, skip, abort) with Redis-backed properties that fall back transparently to in-memory storage.",
+      "language": "python",
+      "concepts": ["redis", "fallback", "control-state", "properties"]
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "file:run.py", "target": "file:ai_team/graph.py", "type": "imports" },
+    { "id": "e2", "source": "file:ai_team/graph.py", "target": "file:ai_team/state.py", "type": "imports" },
+    { "id": "e3", "source": "file:ai_team/graph.py", "target": "file:ai_team/config.py", "type": "imports" },
+    { "id": "e4", "source": "file:ai_team/graph.py", "target": "file:ai_team/bus.py", "type": "imports" },
+    { "id": "e5", "source": "file:ai_team/graph.py", "target": "file:ai_team/agents/coder.py", "type": "imports" },
+    { "id": "e6", "source": "file:ai_team/graph.py", "target": "file:ai_team/agents/reviewer.py", "type": "imports" },
+    { "id": "e7", "source": "file:ai_team/graph.py", "target": "file:ai_team/agents/tester.py", "type": "imports" },
+    { "id": "e8", "source": "file:ai_team/graph.py", "target": "file:ai_team/agents/security.py", "type": "imports" },
+    { "id": "e9", "source": "file:ai_team/graph.py", "target": "file:ai_team/agents/evaluator.py", "type": "imports" },
+    { "id": "e10", "source": "file:ai_team/graph.py", "target": "file:ai_team/agents/planner.py", "type": "imports" },
+    { "id": "e11", "source": "file:ai_team/graph.py", "target": "file:ai_team/agents/architect.py", "type": "imports" },
+    { "id": "e12", "source": "file:ai_team/graph.py", "target": "file:ai_team/agents/requirements.py", "type": "imports" },
+    { "id": "e13", "source": "file:ai_team/graph.py", "target": "file:ai_team/agents/designer.py", "type": "imports" },
+    { "id": "e14", "source": "file:ai_team/graph.py", "target": "file:ai_team/agents/memory.py", "type": "imports" },
+    { "id": "e15", "source": "file:ai_team/graph.py", "target": "file:ai_team/agents/project_detector.py", "type": "imports" },
+    { "id": "e16", "source": "file:ai_team/graph.py", "target": "file:ai_team/agents/codebase_indexer.py", "type": "imports" },
+    { "id": "e17", "source": "file:ai_team/graph.py", "target": "file:ai_team/agents/import_healer.py", "type": "imports" },
+    { "id": "e18", "source": "file:ai_team/graph.py", "target": "file:ai_team/agents/debugger.py", "type": "imports" },
+    { "id": "e19", "source": "file:ai_team/graph.py", "target": "file:ai_team/agents/auditor.py", "type": "imports" },
+    { "id": "e20", "source": "file:ai_team/graph.py", "target": "file:ai_team/agents/docs.py", "type": "imports" },
+    { "id": "e21", "source": "file:ai_team/graph.py", "target": "file:ai_team/rag/store.py", "type": "imports" },
+    { "id": "e22", "source": "file:ai_team/agents/coder.py", "target": "file:ai_team/agents/react_loop.py", "type": "imports" },
+    { "id": "e23", "source": "file:ai_team/agents/coder.py", "target": "file:ai_team/config.py", "type": "imports" },
+    { "id": "e24", "source": "file:ai_team/agents/coder.py", "target": "file:ai_team/bus.py", "type": "imports" },
+    { "id": "e25", "source": "file:ai_team/agents/react_loop.py", "target": "file:ai_team/tools/shell_tools.py", "type": "imports" },
+    { "id": "e26", "source": "file:ai_team/agents/react_loop.py", "target": "file:ai_team/observability.py", "type": "imports" },
+    { "id": "e27", "source": "file:ai_team/tools/rag_tools.py", "target": "file:ai_team/rag/store.py", "type": "imports" },
+    { "id": "e28", "source": "file:ai_team/rag/store.py", "target": "file:ai_team/rag/chunker.py", "type": "imports" },
+    { "id": "e29", "source": "file:ai_team/rag/store.py", "target": "file:ai_team/rag/hybrid_search.py", "type": "imports" },
+    { "id": "e30", "source": "file:ai_team/rag/lessons_rag.py", "target": "file:ai_team/rag/store.py", "type": "imports" },
+    { "id": "e31", "source": "file:ai_team/web/app.py", "target": "file:ai_team/bus.py", "type": "imports" },
+    { "id": "e32", "source": "file:ai_team/web/app.py", "target": "file:ai_team/web/a2a_routes.py", "type": "imports" },
+    { "id": "e33", "source": "file:ai_team/web/app.py", "target": "file:ai_team/web/agui_routes.py", "type": "imports" },
+    { "id": "e34", "source": "function:build_graph", "target": "class:State", "type": "uses" },
+    { "id": "e35", "source": "function:react_loop", "target": "class:TokenUsage", "type": "uses" },
+    { "id": "e36", "source": "class:ControlState", "target": "file:ai_team/bus.py", "type": "uses" },
+    { "id": "e37", "source": "file:ai_team/agents/frontend_web.py", "target": "file:ai_team/agents/react_loop.py", "type": "imports" },
+    { "id": "e38", "source": "file:ai_team/agents/frontend_mobile.py", "target": "file:ai_team/agents/react_loop.py", "type": "imports" },
+    { "id": "e39", "source": "file:ai_team/agents/frontend_desktop.py", "target": "file:ai_team/agents/react_loop.py", "type": "imports" }
+  ],
+  "tours": [
+    {
+      "id": "tour:getting-started",
+      "title": "Getting Started — How a Task Becomes Code",
+      "steps": [
+        { "nodeId": "file:run.py", "reason": "Start here: the CLI entry point that accepts a task description and kicks off the pipeline." },
+        { "nodeId": "file:ai_team/graph.py", "reason": "The main orchestrator builds the LangGraph DAG and wires all agents together." },
+        { "nodeId": "function:init_node", "reason": "The first node executed: detects the project, indexes the codebase, builds RAG, and creates a git branch." },
+        { "nodeId": "file:ai_team/agents/requirements.py", "reason": "Product Manager agent gathers requirements from the task description with a human approval gate." },
+        { "nodeId": "file:ai_team/agents/architect.py", "reason": "Architect reads existing code and produces a technical design, which the user approves." },
+        { "nodeId": "file:ai_team/agents/coder.py", "reason": "Coder implements the architecture spec using the ReAct loop with file and shell tools." },
+        { "nodeId": "file:ai_team/agents/evaluator.py", "reason": "Evaluator aggregates all verification findings and decides to ship or send back to coder." }
+      ]
+    },
+    {
+      "id": "tour:core-infrastructure",
+      "title": "Core Infrastructure — State, Bus, RAG, and Tools",
+      "steps": [
+        { "nodeId": "class:State", "reason": "All data flows through this TypedDict — understand it to understand the pipeline." },
+        { "nodeId": "class:AgentBus", "reason": "Agents communicate via this pub/sub bus backed by SQLite for persistence across sessions." },
+        { "nodeId": "file:ai_team/agents/react_loop.py", "reason": "Every coding agent shares this ReAct loop with retry, token tracking, and progress reporting." },
+        { "nodeId": "file:ai_team/tools/shell_tools.py", "reason": "The sandboxed tool set that agents use: file read/write, shell commands restricted by allowlist." },
+        { "nodeId": "file:ai_team/rag/store.py", "reason": "Vector store providing semantic code search with diff-aware incremental updates." },
+        { "nodeId": "file:ai_team/web/app.py", "reason": "The live dashboard exposes WebSocket streams and REST controls for monitoring and intervention." }
+      ]
+    }
+  ]
+}
